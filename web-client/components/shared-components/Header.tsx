@@ -111,7 +111,7 @@ export default function Header() {
     };
 
     // Profile image handler
-    const handleImageChange = (e: { target: { files: any[]; }; }) => {
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const url = URL.createObjectURL(file);

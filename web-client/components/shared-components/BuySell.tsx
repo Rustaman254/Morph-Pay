@@ -15,7 +15,7 @@ const COUNTRIES = [
   { name: "Tanzania", code: "TZ", currency: "TZS", flag: "/tanzania.svg", rate: 2500, networks: ["Vodacom", "Airtel", "Tigo", "Halotel"] },
   { name: "Uganda", code: "UG", currency: "UGX", flag: "/uganda.svg", rate: 3800, networks: ["MTN", "Airtel", "Africell"] }
 ];
-const TOKEN_TO_USD = { ETH: 2000, USDT: 1, BNB: 310 };
+const TOKEN_TO_USD: Record<'ETH' | 'USDT' | 'BNB', number> = { ETH: 2000, USDT: 1, BNB: 310 };
 const MARKET_RATES = {
   "ETH:USDT": 2000,
   "USDT:ETH": 1 / 2000,
@@ -37,7 +37,7 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
   // Swap-specific
   const [toToken, setToToken] = useState(TOKENS[1]);
   const [showToDropdown, setShowToDropdown] = useState(false);
-  const key = `${fromToken.symbol}:${toToken.symbol}`;
+  const key = `${fromToken.symbol}:${toToken.symbol}` as keyof typeof MARKET_RATES;
   const marketRate = MARKET_RATES[key] || 1;
   const toAmount =
     fromAmount && !isNaN(Number(fromAmount)) && Number(fromAmount) !== 0
@@ -51,7 +51,7 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
   const [recipient, setRecipient] = useState("");
   const [address, setAddress] = useState("");
   useEffect(() => { setNetwork(country.networks[0]); }, [country]);
-  const tokenUsd = TOKEN_TO_USD[fromToken.symbol] || 1;
+  const tokenUsd = TOKEN_TO_USD[fromToken.symbol as keyof typeof TOKEN_TO_USD] || 1;
   const outputUsd = fromAmount && !isNaN(Number(fromAmount)) && Number(fromAmount) !== 0
     ? parseFloat(fromAmount) * tokenUsd
     : 0;
@@ -274,7 +274,7 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
             <div className="w-full bg-[#14161b] rounded-2xl px-4 py-3 mb-2 flex items-center gap-3 shadow">
               <span className="text-sm text-gray-400">Exchange Rate:</span>
               <span className="text-sm font-bold text-[#96a954]">
-                1 {fromToken.symbol} = {(TOKEN_TO_USD[fromToken.symbol] * country.rate).toLocaleString()} {country.currency}
+                1 {fromToken.symbol} = {(TOKEN_TO_USD[fromToken.symbol as keyof typeof TOKEN_TO_USD] * country.rate).toLocaleString()} {country.currency}
               </span>
             </div>
           )}
