@@ -17,14 +17,23 @@ const DEFAULT_PROFILE =
     "https://ui-avatars.com/api/?name=User&background=96a954&color=232628&size=128";
 
 // Modal for displaying information, unchanged
+interface WalletInfoModalProps {
+    walletAddress: string;
+    onClose: () => void;
+    onCopy: () => void;
+    copied: boolean;
+    userProfileImage: string | null;
+    onImageChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}
+
 function WalletInfoModal({
     walletAddress,
     onClose,
     onCopy,
     copied,
-    profileImage,
+    userProfileImage,
     onImageChange,
-}) {
+}: WalletInfoModalProps) {
     return (
         <div className="fixed inset-0 flex items-center justify-center z-[100] bg-black/60">
             <div className="bg-[#232628] rounded-lg p-8 min-w-[320px] flex flex-col items-center relative shadow-lg">
@@ -36,7 +45,7 @@ function WalletInfoModal({
                     &#10005;
                 </button>
                 <img
-                    src={profileImage || DEFAULT_PROFILE}
+                    src={userProfileImage || DEFAULT_PROFILE}
                     alt="Profile"
                     className="w-20 h-20 rounded-full mb-4 object-cover"
                 />
@@ -62,7 +71,7 @@ function WalletInfoModal({
                     </button>
                 </div>
                 <span className="text-xs text-[#96a954] text-center w-full">
-                    Wallet Info: Add more details here.
+                    Connected to Starknet
                 </span>
             </div>
         </div>
@@ -71,11 +80,11 @@ function WalletInfoModal({
 
 export default function Header() {
     const [connected, setConnected] = useState(false);
-    const [wallet, setWallet] = useState(null);
+    const [wallet, setWallet] = useState<any>(null);
     const [walletAddress, setWalletAddress] = useState("");
     const [showWalletInfo, setShowWalletInfo] = useState(false);
     const [copied, setCopied] = useState(false);
-    const [profileImage, setProfileImage] = useState(null);
+    const [profileImage, setProfileImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const pathname = usePathname();
 
@@ -161,7 +170,7 @@ export default function Header() {
     };
 
     // Handle image upload
-    const handleImageChange = e => {
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const url = URL.createObjectURL(file);
@@ -243,7 +252,7 @@ export default function Header() {
                     onClose={handleCloseWalletInfo}
                     onCopy={handleCopy}
                     copied={copied}
-                    profileImage={profileImage}
+                    userProfileImage={profileImage}
                     onImageChange={handleImageChange}
                 />
             )}
