@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { WalletMinimal, LogOut } from "lucide-react"; // Import icons
 
 export default function Header() {
   const [connected, setConnected] = useState(false);
@@ -21,7 +22,7 @@ export default function Header() {
         {/* Logo */}
         <div className="font-bold text-base text-[#96a954] z-10">Morph Pay</div>
 
-        {/* Navigation (always perfectly centered) */}
+        {/* Navigation (always centered) */}
         <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <ul className="flex gap-3 list-none m-0">
             {navLinks.map(({ href, label }) => {
@@ -47,28 +48,16 @@ export default function Header() {
           {!connected ? (
             <button
               onClick={() => setConnected(true)}
-              className="bg-[#96a954] text-[#14161b] font-semibold text-sm px-4 py-1.5 rounded-full transition-colors hover:bg-[#96a954]/90"
+              className="bg-[#96a954] text-[#14161b] font-semibold text-sm px-4 py-1.5 rounded-full flex items-center gap-2 transition-colors hover:bg-[#96a954]/90"
             >
+              <WalletMinimal className="w-4 h-4" strokeWidth={2} />
               Connect
             </button>
           ) : (
             <div className="bg-[#1e2127] rounded-full px-4 py-2 flex items-center gap-4 shadow">
               <div className="flex items-center gap-2">
                 <span className="w-7 h-7 bg-[#96a954] flex items-center justify-center rounded-full">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="#14161b"
-                    className="w-4 h-4"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 7V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2m0-6h18"
-                    />
-                  </svg>
+                  <WalletMinimal className="w-4 h-4" stroke="#14161b" strokeWidth={2} />
                 </span>
                 <span className="text-white text-sm font-mono">{walletAddress}</span>
               </div>
@@ -77,20 +66,7 @@ export default function Header() {
                 className="bg-[#96a954] text-[#14161b] font-semibold text-sm px-4 py-1.5 rounded-full flex items-center gap-1 hover:bg-[#96a954]/90 transition"
               >
                 Logout
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-4 h-4 ml-1"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="#14161b"
-                  strokeWidth={2}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M17 16l4-4m0 0l-4-4m4 4H7"
-                  />
-                </svg>
+                <LogOut className="w-4 h-4 ml-1" stroke="#14161b" strokeWidth={2} />
               </button>
             </div>
           )}
