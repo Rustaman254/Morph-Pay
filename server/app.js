@@ -2,9 +2,9 @@ const express = require('express');
 const userRoutes = require('./routes/userRoutes');
 require('dotenv').config();
 
-const app = express(); // <-- fix typo here
+const app = express(); 
 app.use(express.json());
-
+app.use(express.urlencoded({ extended: true }));
 
 app.get('/', (req, res) => {
     res.send('Hello World!');

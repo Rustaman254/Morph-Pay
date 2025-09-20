@@ -3,7 +3,6 @@ const router = express.Router();
 const userController = require('../controllers/userControllers');
 const ratelimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
-const { AccountType, NetworkType } = require('starknet');
 
 const ratelimiter = ratelimit({
     windowMs: 15 * 60 * 1000, 
