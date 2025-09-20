@@ -1,22 +1,44 @@
 "use client";
 import { useState, useEffect } from "react";
 import { ChevronDown, ArrowDownUp } from "lucide-react";
+import Image from "next/image";
 
-// Dummy data
-const TOKENS = [
+// --- Types ---
+type Mode = "swap" | "send";
+type Tab = "BUY" | "SELL" | "fiat" | "crypto";
+
+interface Token {
+  symbol: "ETH" | "USDT" | "BNB";
+  name: string;
+  logo: string;
+  balance: number;
+}
+interface Country {
+  name: string;
+  code: string;
+  currency: string;
+  flag: string;
+  rate: number;
+  networks: string[];
+}
+type PillButtonValue = Token | Country;
+type SetDropdown = (v: boolean) => void;
+
+// --- Dummy Data ---
+const TOKENS: Token[] = [
   { symbol: "ETH", name: "Ethereum", logo: "/ethereum-eth-logo.png", balance: 2.543 },
   { symbol: "USDT", name: "Tether USD", logo: "/tether-usdt-logo.png", balance: 403.44 },
-  { symbol: "BNB", name: "Binance Coin", logo: "/binance-coin-bnb-logo.png", balance: 5.32 },
+  { symbol: "BNB", name: "Binance Coin", logo: "/binance-coin-bnb-logo.png", balance: 5.32 }
 ];
-const COUNTRIES = [
+const COUNTRIES: Country[] = [
   { name: "Kenya", code: "KE", currency: "KES", flag: "/kenya.svg", rate: 160, networks: ["Mpesa", "Airtel Money", "Telkom"] },
   { name: "Nigeria", code: "NG", currency: "NGN", flag: "/nigeria.svg", rate: 950, networks: ["MTN", "Airtel", "Glo", "9mobile"] },
   { name: "USA", code: "US", currency: "USD", flag: "/usa.svg", rate: 1, networks: ["T-Mobile", "AT&T", "Verizon"] },
   { name: "Tanzania", code: "TZ", currency: "TZS", flag: "/tanzania.svg", rate: 2500, networks: ["Vodacom", "Airtel", "Tigo", "Halotel"] },
   { name: "Uganda", code: "UG", currency: "UGX", flag: "/uganda.svg", rate: 3800, networks: ["MTN", "Airtel", "Africell"] }
 ];
-const TOKEN_TO_USD: Record<'ETH' | 'USDT' | 'BNB', number> = { ETH: 2000, USDT: 1, BNB: 310 };
-const MARKET_RATES = {
+const TOKEN_TO_USD: Record<"ETH" | "USDT" | "BNB", number> = { ETH: 2000, USDT: 1, BNB: 310 };
+const MARKET_RATES: Record<string, number> = {
   "ETH:USDT": 2000,
   "USDT:ETH": 1 / 2000,
   "ETH:BNB": 6.28,
@@ -25,48 +47,96 @@ const MARKET_RATES = {
   "BNB:USDT": 318,
 };
 
-type Mode = "swap" | "send";
+// --- Pill Button Component ---
+function pillButton<T extends Token | Country>(
+  dropdown: boolean,
+  setDropdown: SetDropdown,
+  value: T,
+  list: T[],
+  onChange: (item: T) => void
+) {
+  return (
+    <button
+      onClick={() => setDropdown(!dropdown)}
+      className="flex items-center bg-[#1e2127] text-white text-base sm:text-lg font-bold px-5 sm:px-8 py-2 rounded-full relative"
+      style={{ minWidth: 90, minHeight: 44, border: "none" }}
+      type="button"
+    >
+      {"logo" in value && (
+        <Image
+          src={value.logo || (value as unknown as Country).flag}
+          alt=""
+          width={32}
+          height={32}
+          className="w-7 h-7 sm:w-8 sm:h-8 mr-2 rounded-full"
+        />
+      )}
+      {"symbol" in value ? value.symbol : value.name}
+      <svg className="ml-2 w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M10 12a1 1 0 01-.707-.293l-3-3a1 1 0 111.414-1.414L10 9.586l2.293-2.293a1 1 0 111.414 1.414l-3 3A1 1 0 0110 12z" clipRule="evenodd" />
+      </svg>
+      {dropdown && (
+        <div className="absolute left-0 mt-2 w-44 sm:w-56 bg-[#232628] z-20 rounded-2xl shadow-lg">
+          {list.map(item => (
+            <div
+              key={"symbol" in item ? item.symbol : item.code}
+              onClick={() => { onChange(item); setDropdown(false); }}
+              className="flex items-center gap-2 py-2 sm:py-3 px-3 sm:px-4 hover:bg-[#1e2127] cursor-pointer rounded-2xl"
+            >
+              {"logo" in item && (
+                <Image
+                  src={item.logo || (item as unknown as Country).flag}
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full"
+                />
+              )}
+              <span className="font-semibold">
+                {"symbol" in item ? item.symbol : item.name}
+              </span>
+              <span className="text-gray-400 text-xs">
+                {"name" in item ? item.name : (item as Country).currency}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </button>
+  );
+}
 
+// --- Main Component ---
 export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
-  const [tab, setTab] = useState<"BUY" | "SELL" | "fiat" | "crypto">(mode === "swap" ? "BUY" : "fiat");
-  const [fromToken, setFromToken] = useState(TOKENS[0]);
-  const [showFromDropdown, setShowFromDropdown] = useState(false);
-  const [fromAmount, setFromAmount] = useState("");
-  const [sending, setSending] = useState(false);
+  const [tab, setTab] = useState<Tab>(mode === "swap" ? "BUY" : "fiat");
+  const [fromToken, setFromToken] = useState<Token>(TOKENS[0]);
+  const [showFromDropdown, setShowFromDropdown] = useState<boolean>(false);
+  const [fromAmount, setFromAmount] = useState<string>("");
+  const [sending, setSending] = useState<boolean>(false);
 
-  // Swap-specific
-  const [toToken, setToToken] = useState(TOKENS[1]);
-  const [showToDropdown, setShowToDropdown] = useState(false);
-  const key = `${fromToken.symbol}:${toToken.symbol}` as keyof typeof MARKET_RATES;
+  const [toToken, setToToken] = useState<Token>(TOKENS[1]);
+  const [showToDropdown, setShowToDropdown] = useState<boolean>(false);
+  const key = `${fromToken.symbol}:${toToken.symbol}`;
   const marketRate = MARKET_RATES[key] || 1;
   const toAmount =
     fromAmount && !isNaN(Number(fromAmount)) && Number(fromAmount) !== 0
       ? (parseFloat(fromAmount) * marketRate).toFixed(6)
       : "0";
 
-  // Send-specific
-  const [country, setCountry] = useState(COUNTRIES[0]);
-  const [showCountryDropdown, setShowCountryDropdown] = useState(false);
-  const [network, setNetwork] = useState(country.networks[0]);
-  const [recipient, setRecipient] = useState("");
-  const [address, setAddress] = useState("");
+  const [country, setCountry] = useState<Country>(COUNTRIES[0]);
+  const [showCountryDropdown, setShowCountryDropdown] = useState<boolean>(false);
+  const [network, setNetwork] = useState<string>(country.networks[0]);
+  const [recipient, setRecipient] = useState<string>("");
+  const [address, setAddress] = useState<string>("");
   useEffect(() => { setNetwork(country.networks[0]); }, [country]);
-  const tokenUsd = TOKEN_TO_USD[fromToken.symbol as keyof typeof TOKEN_TO_USD] || 1;
+  const tokenUsd = TOKEN_TO_USD[fromToken.symbol];
   const outputUsd = fromAmount && !isNaN(Number(fromAmount)) && Number(fromAmount) !== 0
     ? parseFloat(fromAmount) * tokenUsd
     : 0;
   const outputFiat = outputUsd * country.rate;
-  const inputStyle = { boxShadow: "none", appearance: "textfield" as any };
+  const inputStyle = { boxShadow: "none", appearance: "textfield" as const };
 
-  function handleSwapShuffle() {
-    setFromToken(toToken);
-    setToToken(fromToken);
-    setFromAmount(toAmount);
-    setShowFromDropdown(false);
-    setShowToDropdown(false);
-  }
-
-  function handleSend(e: React.FormEvent) {
+  function handleSend(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSending(true);
     setTimeout(() => {
@@ -77,33 +147,6 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
       alert(mode === "swap" ? "Swap complete!" : "Transfer Successful!");
     }, 1200);
   }
-
-  const pillButton = (dropdown: boolean, setDropdown: (v: boolean) => void, value: any, list: any[], onChange: (item: any) => void) => (
-    <button
-      onClick={() => setDropdown(!dropdown)}
-      className="flex items-center bg-[#1e2127] text-white text-base sm:text-lg font-bold px-5 sm:px-8 py-2 rounded-full"
-      style={{ minWidth: 90, minHeight: 44, border: "none" }}
-      type="button"
-    >
-      {"logo" in value && <img src={value.logo || value.flag} alt="" className="w-7 h-7 sm:w-8 sm:h-8 mr-2 rounded-full" />}
-      {"symbol" in value ? value.symbol : value.name}
-      <svg className="ml-2 w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-        <path fillRule="evenodd" d="M10 12a1 1 0 01-.707-.293l-3-3a1 1 0 111.414-1.414L10 9.586l2.293-2.293a1 1 0 111.414 1.414l-3 3A1 1 0 0110 12z" clipRule="evenodd" />
-      </svg>
-      {dropdown && <div className="absolute left-0 mt-2 w-44 sm:w-56 bg-[#232628] z-20 rounded-2xl shadow-lg">
-        {list.map(item => (
-          <div key={item.symbol || item.code}
-            onClick={() => { onChange(item); setDropdown(false); }}
-            className="flex items-center gap-2 py-2 sm:py-3 px-3 sm:px-4 hover:bg-[#1e2127] cursor-pointer rounded-2xl"
-          >
-            {"logo" in item && <img src={item.logo || item.flag} alt="" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" />}
-            <span className="font-semibold">{item.symbol || item.name}</span>
-            <span className="text-gray-400 text-xs">{item.name || item.currency}</span>
-          </div>
-        ))}
-      </div>}
-    </button>
-  );
 
   return (
     <div className="w-full flex justify-center mt-4 px-2 sm:px-4 md:px-0">
@@ -120,7 +163,7 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
                     ? "text-[#96a954] border-[#96a954]"
                     : "text-white border-transparent hover:text-[#96a954]"}
                 `}
-                onClick={() => setTab(label as any)}
+                onClick={() => setTab(label as Tab)}
               >{mode === "swap" ? label : (label === "fiat" ? "SEND FIAT" : "SEND CRYPTO")}</button>
             ))}
           </div>
@@ -199,51 +242,51 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
                 </div>
               </>
             ) : (
-              // Send
-              <>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="relative">
-                    {pillButton(showCountryDropdown, setShowCountryDropdown, country, COUNTRIES, setCountry)}
-                  </div>
-                  {tab === "crypto"
-                    ? null
-                    : <span className="ml-auto text-xs sm:text-sm text-white font-medium">you get</span>
-                  }
+            // Send
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <div className="relative">
+                  {pillButton(showCountryDropdown, setShowCountryDropdown, country, COUNTRIES, setCountry)}
                 </div>
-                {tab === "crypto" ? (
-                  <>
-                    <label className="block text-gray-400 text-sm mb-1 font-medium">Recipient Wallet Address</label>
-                    <input
-                      type="text"
-                      placeholder="Paste wallet address"
-                      required
-                      value={address}
-                      onChange={e => setAddress(e.target.value)}
-                      className="w-full bg-transparent border-none outline-none text-lg font-bold text-white px-0 py-2 rounded focus:ring-2 focus:ring-[#96a954]"
-                      style={inputStyle}
-                      autoComplete="off"
-                    />
-                  </>
-                ) : (
-                  <>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      readOnly
-                      value={outputFiat ? outputFiat.toLocaleString() : "0.00"}
-                      className="bg-transparent border-none outline-none text-lg sm:text-2xl font-bold text-white px-0 w-2/3 select-none opacity-80"
-                      style={inputStyle}
-                      autoComplete="off"
-                    />
-                    <div className="flex flex-col items-end ml-auto mt-1">
-                      <span className="text-xs text-white mb-0.5">{country.currency}</span>
-                    </div>
-                  </>
-                )}
-              </>
+                {tab === "crypto"
+                  ? null
+                  : <span className="ml-auto text-xs sm:text-sm text-white font-medium">you get</span>
+                }
+              </div>
+              {tab === "crypto" ? (
+                <>
+                  <label className="block text-gray-400 text-sm mb-1 font-medium">Recipient Wallet Address</label>
+                  <input
+                    type="text"
+                    placeholder="Paste wallet address"
+                    required
+                    value={address}
+                    onChange={e => setAddress(e.target.value)}
+                    className="w-full bg-transparent border-none outline-none text-lg font-bold text-white px-0 py-2 rounded focus:ring-2 focus:ring-[#96a954]"
+                    style={inputStyle}
+                    autoComplete="off"
+                  />
+                </>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    readOnly
+                    value={outputFiat ? outputFiat.toLocaleString() : "0.00"}
+                    className="bg-transparent border-none outline-none text-lg sm:text-2xl font-bold text-white px-0 w-2/3 select-none opacity-80"
+                    style={inputStyle}
+                    autoComplete="off"
+                  />
+                  <div className="flex flex-col items-end ml-auto mt-1">
+                    <span className="text-xs text-white mb-0.5">{country.currency}</span>
+                  </div>
+                </>
+              )}
+            </>
             )}
           </div>
-          {/* Card for Mobile Network & Phone (send mode, fiat only) */}
+          {/* Mobile Network & Phone Card (send / fiat) */}
           {mode === "send" && tab === "fiat" && (
             <div className="w-full bg-[#232628] rounded-2xl px-4 sm:px-6 py-4 shadow-lg flex flex-col z-10 relative">
               <label className="text-gray-400 text-sm mb-1 font-medium">Mobile Network</label>
@@ -269,12 +312,12 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
               />
             </div>
           )}
-          {/* Exchange rate card (for send only) */}
-          {(mode === "send" && (tab === "fiat" || tab === "crypto")) && (
+          {/* Exchange Rate Card (send) */}
+          {mode === "send" && (tab === "fiat" || tab === "crypto") && (
             <div className="w-full bg-[#14161b] rounded-2xl px-4 py-3 mb-2 flex items-center gap-3 shadow">
               <span className="text-sm text-gray-400">Exchange Rate:</span>
               <span className="text-sm font-bold text-[#96a954]">
-                1 {fromToken.symbol} = {(TOKEN_TO_USD[fromToken.symbol as keyof typeof TOKEN_TO_USD] * country.rate).toLocaleString()} {country.currency}
+                1 {fromToken.symbol} = {(TOKEN_TO_USD[fromToken.symbol] * country.rate).toLocaleString()} {country.currency}
               </span>
             </div>
           )}
