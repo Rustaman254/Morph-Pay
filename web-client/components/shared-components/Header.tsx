@@ -2,76 +2,109 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { WalletMinimal, LogOut } from "lucide-react"; // Import icons
+import {
+  WalletMinimal,
+  LogOut,
+  LayoutDashboard,
+  ArrowLeftRight,
+  Send,
+  Download,
+} from "lucide-react";
 
 export default function Header() {
   const [connected, setConnected] = useState(false);
   const walletAddress = "0x12...89F7";
   const pathname = usePathname();
 
+  // Desktop: Dashboard is first/leftmost
   const navLinks = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/transactions", label: "Transactions" },
-    { href: "/send", label: "Send" },
-    { href: "/receive", label: "Receive" },
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+    { href: "/send", label: "Send", icon: Send },
+    { href: "/receive", label: "Receive", icon: Download },
   ];
 
   return (
-    <header className="w-full h-16 bg-[#14161b] flex items-center px-8">
-      <div className="w-full relative flex items-center h-full">
-        {/* Logo */}
-        <div className="font-bold text-base text-[#96a954] z-10">Morph Pay</div>
+    <>
+      {/* Desktop header */}
+      <header className="w-full h-16 bg-[#14161b] flex items-center px-8">
+        <div className="w-full relative flex items-center h-full">
+          {/* Logo */}
+          <div className="font-bold text-base text-[#96a954] z-10">Morph Pay</div>
 
-        {/* Navigation (always centered) */}
-        <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <ul className="flex gap-3 list-none m-0">
-            {navLinks.map(({ href, label }) => {
-              const isActive = pathname === href;
-              return (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    className={`text-white font-medium text-sm px-3 py-2 transition-colors duration-200 
-                      ${isActive ? "bg-[#232628] rounded-full font-semibold" : "rounded-full"} 
-                      hover:bg-[#232628]`}
-                  >
-                    {label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+          {/* DESKTOP navigation with Dashboard at start */}
+          <nav className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden sm:block">
+            <ul className="flex gap-3 list-none m-0">
+              {navLinks.map(({ href, label }) => {
+                const isActive = pathname === href;
+                return (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      className={`text-white font-medium text-sm px-3 py-2 transition-colors duration-200
+                        ${isActive ? "bg-[#232628] rounded-full font-semibold" : "rounded-full"}
+                        hover:bg-[#232628]`}
+                    >
+                      {label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
 
-        {/* Right side (absolute) */}
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center">
-          {!connected ? (
-            <button
-              onClick={() => setConnected(true)}
-              className="bg-[#96a954] text-[#14161b] font-semibold text-sm px-4 py-1.5 rounded-full flex items-center gap-2 transition-colors hover:bg-[#96a954]/90"
-            >
-              <WalletMinimal className="w-4 h-4" strokeWidth={2} />
-              Connect
-            </button>
-          ) : (
-            <div className="bg-[#1e2127] rounded-full px-4 py-2 flex items-center gap-4 shadow">
-              <div className="flex items-center gap-2">
-                <span className="w-7 h-7 bg-[#96a954] flex items-center justify-center rounded-full">
-                  <WalletMinimal className="w-4 h-4" stroke="#14161b" strokeWidth={2} />
-                </span>
-                <span className="text-white text-sm font-mono">{walletAddress}</span>
-              </div>
+          {/* Right */}
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center">
+            {!connected ? (
               <button
-                onClick={() => setConnected(false)}
-                className="bg-[#96a954] text-[#14161b] font-semibold text-sm px-4 py-1.5 rounded-full flex items-center gap-1 hover:bg-[#96a954]/90 transition"
+                onClick={() => setConnected(true)}
+                className="bg-[#96a954] text-[#14161b] font-semibold text-sm px-4 py-1.5 rounded-full flex items-center gap-2 transition-colors hover:bg-[#96a954]/90"
               >
-                Logout
-                <LogOut className="w-4 h-4 ml-1" stroke="#14161b" strokeWidth={2} />
+                <WalletMinimal className="w-4 h-4" stroke="#14161b" />
+                Connect
               </button>
-            </div>
-          )}
+            ) : (
+              <div className="bg-[#1e2127] rounded-full px-4 py-2 flex items-center gap-4 shadow">
+                <div className="flex items-center gap-2">
+                  <span className="w-7 h-7 bg-[#96a954] flex items-center justify-center rounded-full">
+                    <WalletMinimal className="w-4 h-4" stroke="#14161b" />
+                  </span>
+                  <span className="text-white text-sm font-mono">{walletAddress}</span>
+                </div>
+                <button
+                  onClick={() => setConnected(false)}
+                  className="bg-[#96a954] text-[#14161b] font-semibold text-sm px-4 py-1.5 rounded-full flex items-center gap-1 hover:bg-[#96a954]/90 transition"
+                >
+                  Logout
+                  <LogOut className="w-4 h-4 ml-1" stroke="#14161b" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* MOBILE: icons only, rounded container, active same as connect */}
+      <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex bg-[#20232b] bg-opacity-95 rounded-full items-center py-2 px-4 shadow-lg border border-[#232628] sm:hidden">
+        {navLinks.map(({ href, icon: Icon }) => {
+          const isActive = pathname === href;
+          return (
+            <Link
+              href={href}
+              key={href}
+              className={`
+                flex items-center justify-center 
+                px-3 py-2 mx-1 rounded-full
+                transition-colors duration-200
+                text-white
+                ${isActive ? "bg-[#96a954]" : "bg-transparent"}
+              `}
+            >
+              <Icon className="w-6 h-6" />
+            </Link>
+          );
+        })}
+      </nav>
+    </>
   );
 }
