@@ -98,10 +98,10 @@ export default function Header() {
     const pathname = usePathname();
 
     const navLinks = [
-        { href: "/", label: "Buy/Sell Crypto", icon: LayoutDashboard },
-        { href: "/send", label: "Send", icon: Send },
+        // { href: "/", label: "Swap", icon: LayoutDashboard },
+        { href: "/", label: "Send", icon: Send },
         // { href: "/receive", label: "Receive", icon: Download },
-        // { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
+        { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
     ];
 
     useEffect(() => {

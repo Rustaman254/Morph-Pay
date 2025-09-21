@@ -9,7 +9,7 @@ export default function Home() {
         <h1 className="text-3xl font-bold text-white">Welcome To Morph Pay</h1>
         <p className="text-lg text-gray-300">Your gateway to seamless crypto transactions.</p>
       </div>
-      <BuySellSend mode="swap" />
+      <BuySellSend mode="send" />
     </DashboardOne>
   );
 }

@@ -1,12 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
-import { ChevronDown, ArrowDownUp } from "lucide-react";
+import { ChevronDown, ArrowDownUp, PlusCircle } from "lucide-react";
 import Image from "next/image";
 
 // --- Types ---
 type Mode = "swap" | "send";
 type Tab = "BUY" | "SELL" | "fiat" | "crypto";
-
 interface Token {
   symbol: "ETH" | "USDT" | "BNB";
   name: string;
@@ -22,7 +21,6 @@ interface Country {
   networks: string[];
 }
 type PillButtonValue = Token | Country;
-type SetDropdown = (v: boolean) => void;
 
 // --- Dummy Data ---
 const TOKENS: Token[] = [
@@ -50,7 +48,7 @@ const MARKET_RATES: Record<string, number> = {
 // --- Pill Button Component ---
 function pillButton<T extends Token | Country>(
   dropdown: boolean,
-  setDropdown: SetDropdown,
+  setDropdown: (v: boolean) => void,
   value: T,
   list: T[],
   onChange: (item: T) => void
@@ -106,6 +104,32 @@ function pillButton<T extends Token | Country>(
   );
 }
 
+
+// --- Deposit Modal Component ---
+function DepositModal({ show, onClose }: { show: boolean, onClose: () => void }) {
+  // This mimics the MetaMask buy screen, but in your color scheme.
+  return show ? (
+    <div className="fixed inset-0 flex items-center justify-center z-[100] bg-black/70">
+      <div className="bg-[#232628] rounded-2xl w-full max-w-sm p-8 flex flex-col items-center shadow-xl relative">
+        <button
+          className="absolute top-4 right-4 text-[#96a954] hover:text-white text-2xl"
+          onClick={onClose}
+        >&#10005;</button>
+        <PlusCircle className="w-10 h-10 text-[#96a954] mb-3" />
+        <h2 className="text-[#96a954] font-bold text-2xl mb-2">Deposit Crypto</h2>
+        <p className="text-white text-center text-base mb-4">Choose a provider to buy crypto with card or transfer.</p>
+        {/* For your own UI, just illustrate some providers */}
+        <div className="w-full flex flex-col gap-4">
+          <button className="bg-[#96a954] text-[#232628] p-3 rounded-full font-bold text-lg hover:bg-[#96a954]/80">Buy with MoonPay</button>
+          <button className="bg-[#96a954] text-[#232628] p-3 rounded-full font-bold text-lg hover:bg-[#96a954]/80">Buy with Transak</button>
+        </div>
+        <span className="text-xs text-[#aaa] mt-6 block text-center">Funds will be deposited to your wallet address</span>
+      </div>
+    </div>
+  ) : null;
+}
+
+
 // --- Main Component ---
 export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
   const [tab, setTab] = useState<Tab>(mode === "swap" ? "BUY" : "fiat");
@@ -136,6 +160,8 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
   const outputFiat = outputUsd * country.rate;
   const inputStyle = { boxShadow: "none", appearance: "textfield" as const };
 
+  const [showDeposit, setShowDeposit] = useState(false);
+
   function handleSend(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSending(true);
@@ -151,32 +177,46 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
   return (
     <div className="w-full flex justify-center mt-4 px-2 sm:px-4 md:px-0">
       <div className="w-full max-w-[430px] sm:max-w-lg md:max-w-2xl">
-        {/* Tabs */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3 sm:gap-4">
-            {(mode === "swap" ? ["BUY", "SELL"] : ["fiat", "crypto"]).map(label => (
-              <button
-                key={label}
-                className={`
-                  uppercase font-bold text-base sm:text-lg tracking-wide px-2 pb-1 border-b-2 transition
-                  ${tab === label
-                    ? "text-[#96a954] border-[#96a954]"
-                    : "text-white border-transparent hover:text-[#96a954]"}
-                `}
-                onClick={() => setTab(label as Tab)}
-              >{mode === "swap" ? label : (label === "fiat" ? "SEND FIAT" : "SEND CRYPTO")}</button>
-            ))}
+
+        {/* Tabs / Deposit */}
+        {mode === "send" && (
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3 sm:gap-4">
+              {["fiat", "crypto"].map(label => (
+                <button
+                  key={label}
+                  className={`
+                    uppercase font-normal text-base sm:text-sm tracking-wide px-2 pb-1 border-b-2 transition
+                    ${tab === label
+                      ? "text-[#96a954] font-bold border-[#96a954]"
+                      : "text-white border-transparent font-bold hover:text-[#96a954]"}
+                  `}
+                  onClick={() => setTab(label as Tab)}
+                >{label === "fiat" ? "SEND FIAT" : "SEND CRYPTO"}</button>
+              ))}
+            </div>
+            {/* Deposit link */}
+            <button
+              className="text-[#96a954] font-semibold text-base px-4 py-1.5 bg-[#1e2127] rounded-full border border-[#232628] hover:bg-[#232628] transition hidden sm:inline-flex items-center"
+              onClick={() => setShowDeposit(true)}
+              type="button"
+            >
+              <PlusCircle className="w-4 h-4 mr-1" />
+              Deposit
+            </button>
           </div>
-        </div>
+        )}
+
         {/* Card Layout */}
         <div className="relative flex flex-col items-center gap-2">
-          {/* Top Card */}
           <div className="w-full bg-[#232628] rounded-2xl px-4 sm:px-6 py-6 shadow-lg flex flex-col z-10 relative">
             <div className="flex items-center justify-between mb-3">
               <div className="relative">
                 {pillButton(showFromDropdown, setShowFromDropdown, fromToken, TOKENS, setFromToken)}
               </div>
-              <span className="ml-auto text-xs sm:text-sm text-white font-medium">you pay</span>
+              <span className="ml-auto text-xs sm:text-sm text-white font-medium">
+                {mode === "swap" ? "you pay" : (tab === "crypto" ? "token" : "you pay")}
+              </span>
             </div>
             <div className="flex items-end justify-between mt-2">
               <input
@@ -196,7 +236,6 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
               </div>
             </div>
           </div>
-          {/* Center Overlap Circle */}
           <div
             className="absolute left-1/2 z-20"
             style={
@@ -212,10 +251,9 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
               }
             </span>
           </div>
-          {/* Bottom Card */}
           <div className="w-full bg-[#232628] rounded-2xl px-4 sm:px-6 py-6 shadow-lg flex flex-col z-10 relative">
             {/* Swap */}
-            {(mode === "swap" || tab === "BUY" || tab === "SELL") ? (
+            {mode === "swap" ? (
               <>
                 <div className="flex items-center justify-between mb-3">
                   <div className="relative">
@@ -241,77 +279,88 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
                   </div>
                 </div>
               </>
-            ) : (
-            // Send
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <div className="relative">
-                  {pillButton(showCountryDropdown, setShowCountryDropdown, country, COUNTRIES, setCountry)}
-                </div>
-                {tab === "crypto"
-                  ? null
-                  : <span className="ml-auto text-xs sm:text-sm text-white font-medium">you get</span>
-                }
-              </div>
-              {tab === "crypto" ? (
-                <>
-                  <label className="block text-gray-400 text-sm mb-1 font-medium">Recipient Wallet Address</label>
-                  <input
-                    type="text"
-                    placeholder="Paste wallet address"
-                    required
-                    value={address}
-                    onChange={e => setAddress(e.target.value)}
-                    className="w-full bg-transparent border-none outline-none text-lg font-bold text-white px-0 py-2 rounded focus:ring-2 focus:ring-[#96a954]"
-                    style={inputStyle}
-                    autoComplete="off"
-                  />
-                </>
-              ) : (
-                <>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    readOnly
-                    value={outputFiat ? outputFiat.toLocaleString() : "0.00"}
-                    className="bg-transparent border-none outline-none text-lg sm:text-2xl font-bold text-white px-0 w-2/3 select-none opacity-80"
-                    style={inputStyle}
-                    autoComplete="off"
-                  />
-                  <div className="flex flex-col items-end ml-auto mt-1">
-                    <span className="text-xs text-white mb-0.5">{country.currency}</span>
+            ) : tab === "crypto" ? (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="relative">
+                    {pillButton(showToDropdown, setShowToDropdown, fromToken, TOKENS, setFromToken)}
                   </div>
-                </>
-              )}
-            </>
+                  <span className="ml-auto text-xs sm:text-sm text-white font-medium">Send to</span>
+                </div>
+                {/* Send Crypto: MetaMask-esque UX */}
+                <label className="block text-gray-400 text-sm mb-1 font-medium">Recipient Wallet Address</label>
+                <input
+                  type="text"
+                  placeholder="Paste wallet address"
+                  required
+                  value={address}
+                  onChange={e => setAddress(e.target.value)}
+                  className="w-full bg-transparent border-none outline-none text-lg font-bold text-white px-0 py-2 rounded focus:ring-2 focus:ring-[#96a954]"
+                  style={inputStyle}
+                  autoComplete="off"
+                />
+                <label className="block text-gray-400 text-sm mb-1 font-medium">Amount</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
+                  placeholder="0.00"
+                  value={fromAmount}
+                  onChange={e => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setFromAmount(e.target.value); }}
+                  className="w-full bg-transparent border-none outline-none text-lg font-bold text-white px-0 py-2 rounded focus:ring-2 focus:ring-[#96a954]"
+                  style={inputStyle}
+                  autoComplete="off"
+                />
+                <div className="flex flex-col items-end ml-auto mt-2">
+                  <span className="text-xs text-white mb-0.5">balance</span>
+                  <span className="text-white text-sm sm:text-lg font-semibold">{fromToken.balance}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="relative">
+                    {pillButton(showCountryDropdown, setShowCountryDropdown, country, COUNTRIES, setCountry)}
+                  </div>
+                  <span className="ml-auto text-xs sm:text-sm text-white font-medium">you get</span>
+                </div>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  readOnly
+                  value={outputFiat ? outputFiat.toLocaleString() : "0.00"}
+                  className="bg-transparent border-none outline-none text-lg sm:text-2xl font-bold text-white px-0 w-2/3 select-none opacity-80"
+                  style={inputStyle}
+                  autoComplete="off"
+                />
+                <div className="flex flex-col items-end ml-auto mt-1">
+                  <span className="text-xs text-white mb-0.5">{country.currency}</span>
+                </div>
+                {/* Mobile Network & Phone Card (send / fiat) */}
+                <label className="text-gray-400 text-sm mb-1 font-medium">Mobile Network</label>
+                <select
+                  value={network}
+                  onChange={e => setNetwork(e.target.value)}
+                  className="w-full bg-[#1e2127] text-white text-lg font-medium px-4 py-2 mb-2 rounded-full border-none outline-none focus:ring-2 focus:ring-[#96a954] transition"
+                >
+                  {country.networks.map(n => (
+                    <option value={n} key={n}>{n}</option>
+                  ))}
+                </select>
+                <label className="text-gray-400 text-sm mb-1 font-medium">Recipient Mobile Number</label>
+                <input
+                  type="tel"
+                  placeholder={`e.g. +254 700000000`}
+                  required
+                  value={recipient}
+                  onChange={e => setRecipient(e.target.value)}
+                  className="w-full bg-transparent border-none outline-none text-lg font-bold text-white px-0 py-2 rounded focus:ring-2 focus:ring-[#96a954]"
+                  style={inputStyle}
+                  autoComplete="off"
+                />
+              </>
             )}
           </div>
-          {/* Mobile Network & Phone Card (send / fiat) */}
-          {mode === "send" && tab === "fiat" && (
-            <div className="w-full bg-[#232628] rounded-2xl px-4 sm:px-6 py-4 shadow-lg flex flex-col z-10 relative">
-              <label className="text-gray-400 text-sm mb-1 font-medium">Mobile Network</label>
-              <select
-                value={network}
-                onChange={e => setNetwork(e.target.value)}
-                className="w-full bg-[#1e2127] text-white text-lg font-medium px-4 py-2 mb-2 rounded-full border-none outline-none focus:ring-2 focus:ring-[#96a954] transition"
-              >
-                {country.networks.map(n => (
-                  <option value={n} key={n}>{n}</option>
-                ))}
-              </select>
-              <label className="text-gray-400 text-sm mb-1 font-medium">Recipient Mobile Number</label>
-              <input
-                type="tel"
-                placeholder={`e.g. +254 700000000`}
-                required
-                value={recipient}
-                onChange={e => setRecipient(e.target.value)}
-                className="w-full bg-transparent border-none outline-none text-lg font-bold text-white px-0 py-2 rounded focus:ring-2 focus:ring-[#96a954]"
-                style={inputStyle}
-                autoComplete="off"
-              />
-            </div>
-          )}
           {/* Exchange Rate Card (send) */}
           {mode === "send" && (tab === "fiat" || tab === "crypto") && (
             <div className="w-full bg-[#14161b] rounded-2xl px-4 py-3 mb-2 flex items-center gap-3 shadow">
@@ -332,13 +381,17 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
             {sending
               ? (mode === "swap" ? "Processing..." : "Sending...")
               : (mode === "swap"
-                ? (tab === "BUY" ? "Buy Now" : "Sell Now")
-                : "Send"
+                ? "Swap"
+                : tab === "fiat"
+                  ? "Send"
+                  : "Send Crypto"
               )
             }
           </button>
         </form>
       </div>
+      {/* Deposit modal for 'send' mode only */}
+      <DepositModal show={showDeposit} onClose={() => setShowDeposit(false)} />
     </div>
   );
 }
