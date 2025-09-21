@@ -9,7 +9,7 @@ export default function Send() {
         {/* <h1 className="text-3xl font-bold text-white">Send Crypto to Mobile</h1>
         <p className="text-lg text-gray-300">Convert and send instantly using Morph Pay.</p> */}
       </div>
-      <BuySellSend mode="send" />
+      <BuySellSend mode="swap" />
     </DashboardOne>
   );
 }

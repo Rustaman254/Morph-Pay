@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ArrowUpRight, ArrowDownLeft, CheckCircle2, XCircle, Clock, X } from "lucide-react";
 import Image from "next/image";
 
-// Dummy transactions for display
+// Dummy data
 const DUMMY_TRANSACTIONS = [
   {
     id: "tx01",
@@ -67,6 +67,7 @@ const DUMMY_TRANSACTIONS = [
   }
 ];
 
+// Details Modal
 function TransactionDetails({ tx, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
@@ -147,91 +148,144 @@ function TransactionDetails({ tx, onClose }) {
   );
 }
 
+const PER_PAGE = 3;
+
+// Main Component
 export default function Transactions() {
   const [selectedTx, setSelectedTx] = useState(null);
+  const [filter, setFilter] = useState<"All" | "Sent" | "Received">("All");
+  const [page, setPage] = useState(1);
+
+  // Apply filter
+  const filtered = filter === "All"
+    ? DUMMY_TRANSACTIONS
+    : DUMMY_TRANSACTIONS.filter(tx => tx.type === filter);
+
+  // Pagination logic
+  const pageCount = Math.ceil(filtered.length / PER_PAGE);
+  const pagedTxs = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+
+  // If filter changes, reset to first page
+  function handleSetFilter(newFilter) {
+    setFilter(newFilter);
+    setPage(1);
+  }
 
   return (
     <div className="w-full flex justify-center mt-8 px-2 sm:px-4">
       <div className="w-full max-w-lg">
-        <div className="bg-[transaparent]/80 backdrop-blur-md rounded-2xl shadow-lg">
-          {/* <h2 className="text-[#96a954] text-2xl font-bold mb-6">Transaction History</h2> */}
-          <div className="space-y-5">
-            {DUMMY_TRANSACTIONS.map(tx => (
+        <div className="bg-[transparent]/80 backdrop-blur-md rounded-2xl shadow-lg">
+          <div className="flex items-center gap-2 mb-6">
+            {["All", "Sent", "Received"].map(type => (
               <button
-                key={tx.id}
-                onClick={() => setSelectedTx(tx)}
-                className="w-full min-h-[100px] flex items-center gap-6 bg-[#232628]/80 backdrop-blur-md rounded-2xl px-5 py-6 shadow transition-transform hover:scale-[1.01] cursor-pointer"
+                key={type}
+                className={`px-5 py-2 rounded-full text-base font-semibold transition
+                  ${filter === type
+                    ? "bg-[#96a954] text-[#232628]"
+                    : "bg-[#1e2127] text-white hover:bg-[#2f3239]"}
+                `}
+                onClick={() => handleSetFilter(type)}
               >
-                <Image
-                  src={tx.logo}
-                  alt={tx.token}
-                  width={48}
-                  height={48}
-                  className="rounded-full border-2 border-[#232628]"
-                />
-                <div className="flex-1 flex flex-col gap-1 text-left">
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-lg text-white">
-                      {tx.amount} {tx.token}
-                    </span>
-                    {tx.type === "Sent" ? (
-                      <ArrowUpRight className="w-5 h-5 text-red-400" />
-                    ) : (
-                      <ArrowDownLeft className="w-5 h-5 text-[#96a954]" />
-                    )}
-                    <span
-                      className={`text-xs px-3 py-1 rounded-full font-semibold ${
-                        tx.type === "Sent"
-                          ? "bg-red-900 text-red-400"
-                          : "bg-green-900 text-[#96a954]"
-                      }`}
-                    >
-                      {tx.type}
-                    </span>
-                  </div>
-                  <div className="flex items-center text-xs font-mono gap-2 text-gray-400">
-                    {tx.type === "Sent" ? (
-                      <>
-                        <span className="font-normal">To</span>
-                        <span className="text-white">{tx.to}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="font-normal">From</span>
-                        <span className="text-white">{tx.from}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-col items-end justify-between min-h-[64px]">
-                  <div className="flex items-center gap-2 mb-2">
-                    {tx.status === "Success" && (
-                      <>
-                        <CheckCircle2 className="w-5 h-5 text-[#96a954]" />
-                        <span className="text-[#96a954] text-xs font-bold">Success</span>
-                      </>
-                    )}
-                    {tx.status === "Pending" && (
-                      <>
-                        <Clock className="w-5 h-5 text-yellow-400 animate-pulse" />
-                        <span className="text-yellow-400 text-xs font-bold">Pending</span>
-                      </>
-                    )}
-                    {tx.status === "Failed" && (
-                      <>
-                        <XCircle className="w-5 h-5 text-red-400" />
-                        <span className="text-red-400 text-xs font-bold">Failed</span>
-                      </>
-                    )}
-                  </div>
-                  <span className="text-xs text-gray-400">{tx.date}</span>
-                </div>
+                {type}
               </button>
             ))}
           </div>
-          {DUMMY_TRANSACTIONS.length === 0 && (
-            <div className="text-center text-lg text-gray-400 py-8">No transactions yet</div>
-          )}
+          <div className="space-y-5 min-h-[340px]">
+            {pagedTxs.length === 0 ? (
+              <div className="text-center text-lg text-gray-400 py-8">No transactions found</div>
+            ) : (
+              pagedTxs.map(tx => (
+                <button
+                  key={tx.id}
+                  onClick={() => setSelectedTx(tx)}
+                  className="w-full min-h-[100px] flex items-center gap-6 bg-[#232628]/80 backdrop-blur-md rounded-2xl px-5 py-6 shadow transition-transform hover:scale-[1.01] cursor-pointer"
+                >
+                  <Image
+                    src={tx.logo}
+                    alt={tx.token}
+                    width={48}
+                    height={48}
+                    className="rounded-full border-2 border-[#232628]"
+                  />
+                  <div className="flex-1 flex flex-col gap-1 text-left">
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-lg text-white">
+                        {tx.amount} {tx.token}
+                      </span>
+                      {tx.type === "Sent" ? (
+                        <ArrowUpRight className="w-5 h-5 text-red-400" />
+                      ) : (
+                        <ArrowDownLeft className="w-5 h-5 text-[#96a954]" />
+                      )}
+                      <span
+                        className={`text-xs px-3 py-1 rounded-full font-semibold ${
+                          tx.type === "Sent"
+                            ? "bg-red-900 text-red-400"
+                            : "bg-green-900 text-[#96a954]"
+                        }`}
+                      >
+                        {tx.type}
+                      </span>
+                    </div>
+                    <div className="flex items-center text-xs font-mono gap-2 text-gray-400">
+                      {tx.type === "Sent" ? (
+                        <>
+                          <span className="font-normal">To</span>
+                          <span className="text-white">{tx.to}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-normal">From</span>
+                          <span className="text-white">{tx.from}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end justify-between min-h-[64px]">
+                    <div className="flex items-center gap-2 mb-2">
+                      {tx.status === "Success" && (
+                        <>
+                          <CheckCircle2 className="w-5 h-5 text-[#96a954]" />
+                          <span className="text-[#96a954] text-xs font-bold">Success</span>
+                        </>
+                      )}
+                      {tx.status === "Pending" && (
+                        <>
+                          <Clock className="w-5 h-5 text-yellow-400 animate-pulse" />
+                          <span className="text-yellow-400 text-xs font-bold">Pending</span>
+                        </>
+                      )}
+                      {tx.status === "Failed" && (
+                        <>
+                          <XCircle className="w-5 h-5 text-red-400" />
+                          <span className="text-red-400 text-xs font-bold">Failed</span>
+                        </>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-400">{tx.date}</span>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+          {/* Pagination */}
+          <div className="flex items-center justify-center mt-8 gap-2">
+            <button
+              className="px-4 py-2 bg-[#1e2127] text-[#96a954] rounded-full font-semibold disabled:opacity-50"
+              disabled={page === 1}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+            >
+              Prev
+            </button>
+            <span className="text-white text-base px-2">{page} / {pageCount}</span>
+            <button
+              className="px-4 py-2 bg-[#1e2127] text-[#96a954] rounded-full font-semibold disabled:opacity-50"
+              disabled={page === pageCount}
+              onClick={() => setPage(p => Math.min(pageCount, p + 1))}
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
       {selectedTx && (
