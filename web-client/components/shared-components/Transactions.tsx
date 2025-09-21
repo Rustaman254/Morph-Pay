@@ -3,7 +3,7 @@ import { useState } from "react";
 import { ArrowUpRight, ArrowDownLeft, CheckCircle2, XCircle, Clock, X } from "lucide-react";
 import Image from "next/image";
 
-// Dummy data
+// Dummy Data
 const DUMMY_TRANSACTIONS = [
   {
     id: "tx01",
@@ -12,7 +12,7 @@ const DUMMY_TRANSACTIONS = [
     to: "0x45fa...89B2",
     token: "ETH",
     amount: 0.09,
-    date: "Sep 20, 2025 09:33",
+    date: "2025-09-20 09:33",
     status: "Success",
     logo: "/ethereum-eth-logo.png",
     network: "Ethereum",
@@ -27,7 +27,7 @@ const DUMMY_TRANSACTIONS = [
     to: "0x12fc...C89F",
     token: "USDT",
     amount: 120.5,
-    date: "Sep 20, 2025 07:17",
+    date: "2025-09-20 07:17",
     status: "Success",
     logo: "/tether-usdt-logo.png",
     network: "Starknet",
@@ -42,9 +42,9 @@ const DUMMY_TRANSACTIONS = [
     to: "0x7Ef6...AE23",
     token: "BNB",
     amount: 1.334,
-    date: "Sep 19, 2025 21:01",
+    date: "2025-09-19 21:01",
     status: "Pending",
-    logo: "/binance-coin-bnb-logo.png",
+    logo: "/bnb-bnb-logo.png",
     network: "BNB Chain",
     txHash: "0xa3eb2effff...",
     fee: "0.01 BNB",
@@ -57,7 +57,7 @@ const DUMMY_TRANSACTIONS = [
     to: "0x12fc...C89F",
     token: "ETH",
     amount: 0.03,
-    date: "Sep 18, 2025 22:44",
+    date: "2025-09-18 22:44",
     status: "Failed",
     logo: "/ethereum-eth-logo.png",
     network: "Ethereum",
@@ -67,12 +67,11 @@ const DUMMY_TRANSACTIONS = [
   }
 ];
 
-// Details Modal
 function TransactionDetails({ tx, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
       <div className="relative z-[101] pointer-events-auto bg-[#232628]/80 backdrop-blur-md rounded-2xl w-full max-w-2xl flex flex-col md:flex-row shadow-2xl overflow-hidden">
-        {/* Summary (Left) */}
+        {/* Summary */}
         <div className="md:w-5/12 w-full flex flex-col items-center justify-center bg-[#232628]/80 px-8 py-8 gap-3">
           <button
             aria-label="Close"
@@ -107,7 +106,7 @@ function TransactionDetails({ tx, onClose }) {
           </div>
           <div className="text-xs text-gray-400 font-mono mt-2">{tx.date}</div>
         </div>
-        {/* Details (Right) */}
+        {/* Details */}
         <div className="md:w-7/12 w-full px-6 py-8 flex flex-col gap-2 text-white font-mono">
           <div className="flex items-center gap-4 pb-4 border-b-2 border-[#1e2127]/60 mb-3">
             <span className="text-base text-gray-400">Network:</span>
@@ -150,24 +149,44 @@ function TransactionDetails({ tx, onClose }) {
 
 const PER_PAGE = 3;
 
-// Main Component
+function parseDateString(dateString) {
+  // expects format "2025-09-20" or "2025-09-20 xx:yy" and returns Date
+  if (!dateString) return null;
+  const onlyDate = dateString.split(" ")[0];
+  return new Date(onlyDate);
+}
+
 export default function Transactions() {
   const [selectedTx, setSelectedTx] = useState(null);
   const [filter, setFilter] = useState<"All" | "Sent" | "Received">("All");
+  const [searchDate, setSearchDate] = useState("");
   const [page, setPage] = useState(1);
 
-  // Apply filter
-  const filtered = filter === "All"
+  // Filtering
+  let filtered = filter === "All"
     ? DUMMY_TRANSACTIONS
     : DUMMY_TRANSACTIONS.filter(tx => tx.type === filter);
+
+  if (searchDate) {
+    filtered = filtered.filter(tx => {
+      const txDateObj = parseDateString(tx.date);
+      // Compare only yyyy-mm-dd part
+      return txDateObj &&
+        txDateObj.toISOString().slice(0, 10) === searchDate;
+    });
+  }
 
   // Pagination logic
   const pageCount = Math.ceil(filtered.length / PER_PAGE);
   const pagedTxs = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  // If filter changes, reset to first page
   function handleSetFilter(newFilter) {
     setFilter(newFilter);
+    setPage(1);
+  }
+
+  function handleDateChange(e) {
+    setSearchDate(e.target.value);
     setPage(1);
   }
 
@@ -175,21 +194,44 @@ export default function Transactions() {
     <div className="w-full flex justify-center mt-8 px-2 sm:px-4">
       <div className="w-full max-w-lg">
         <div className="bg-[transparent]/80 backdrop-blur-md rounded-2xl shadow-lg">
-          <div className="flex items-center gap-2 mb-6">
-            {["All", "Sent", "Received"].map(type => (
-              <button
-                key={type}
-                className={`px-5 py-2 rounded-full text-base font-semibold transition
-                  ${filter === type
-                    ? "bg-[#96a954] text-[#232628]"
-                    : "bg-[#1e2127] text-white hover:bg-[#2f3239]"}
-                `}
-                onClick={() => handleSetFilter(type)}
-              >
-                {type}
-              </button>
-            ))}
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+            <div className="flex items-center gap-2">
+              {["All", "Sent", "Received"].map(type => (
+                <button
+                  key={type}
+                  className={`px-5 py-2 rounded-full text-base font-semibold transition
+                    ${filter === type
+                      ? "bg-[#96a954] text-[#232628]"
+                      : "bg-[#1e2127] text-white hover:bg-[#2f3239]"}
+                  `}
+                  onClick={() => handleSetFilter(type)}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <label className="text-white text-base font-medium" htmlFor="tx-date">Filter by date:</label>
+              <input
+                id="tx-date"
+                type="date"
+                value={searchDate}
+                onChange={handleDateChange}
+                className="bg-[#1e2127] border-none rounded-full px-4 py-2 text-white font-mono focus:ring-2 focus:ring-[#96a954]"
+                max={new Date().toISOString().slice(0, 10)}
+              />
+              {searchDate && (
+                <button
+                  tabIndex={-1}
+                  aria-label="Clear date"
+                  onClick={() => setSearchDate("")}
+                  className="text-gray-400 text-lg ml-1 px-2 pb-1"
+                >×</button>
+              )}
+            </div>
           </div>
+          {/* Transactions List */}
           <div className="space-y-5 min-h-[340px]">
             {pagedTxs.length === 0 ? (
               <div className="text-center text-lg text-gray-400 py-8">No transactions found</div>
@@ -277,10 +319,10 @@ export default function Transactions() {
             >
               Prev
             </button>
-            <span className="text-white text-base px-2">{page} / {pageCount}</span>
+            <span className="text-white text-base px-2">{page} / {pageCount || 1}</span>
             <button
               className="px-4 py-2 bg-[#1e2127] text-[#96a954] rounded-full font-semibold disabled:opacity-50"
-              disabled={page === pageCount}
+              disabled={page === pageCount || pageCount === 0}
               onClick={() => setPage(p => Math.min(pageCount, p + 1))}
             >
               Next

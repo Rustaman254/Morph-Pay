@@ -210,7 +210,7 @@ export default function Header() {
                                 disabled={loading}
                             >
                                 <WalletMinimal className="w-4 h-4" stroke="#14161b" />
-                                {loading ? "Connecting..." : "Sign up / Login with Email"}
+                                {loading ? "Connecting..." : "Sign up / Login"}
                             </button>
                         ) : (
                             // Wallet display has different behaviors on mobile vs desktop
