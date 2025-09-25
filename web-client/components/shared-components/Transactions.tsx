@@ -1,15 +1,18 @@
 "use client";
 import { useState } from "react";
-import { ArrowUpRight, ArrowDownLeft, CheckCircle2, XCircle, Clock, X } from "lucide-react";
+import {
+  ArrowUpRight, ArrowDownLeft, CheckCircle2, XCircle, Clock, X, Wallet
+} from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
-// Dummy Data
+// Dummy Transactions
 const DUMMY_TRANSACTIONS = [
   {
     id: "tx01",
     type: "Sent",
     from: "0x12fc...C89F",
-    to: "0x45fa...89B2",
+    to: "0x45fa...C89F",
     token: "ETH",
     amount: 0.09,
     date: "2025-09-20 09:33",
@@ -66,6 +69,12 @@ const DUMMY_TRANSACTIONS = [
     block: "19199321"
   }
 ];
+
+function parseDateString(dateString) {
+  if (!dateString) return null;
+  const onlyDate = dateString.split(" ")[0];
+  return new Date(onlyDate);
+}
 
 function TransactionDetails({ tx, onClose }) {
   return (
@@ -149,20 +158,16 @@ function TransactionDetails({ tx, onClose }) {
 
 const PER_PAGE = 3;
 
-function parseDateString(dateString) {
-  // expects format "2025-09-20" or "2025-09-20 xx:yy" and returns Date
-  if (!dateString) return null;
-  const onlyDate = dateString.split(" ")[0];
-  return new Date(onlyDate);
-}
+export default function Transactions({ compact = false }) {
+  // Simulate connection state
+  const [connected] = useState(true);
 
-export default function Transactions() {
   const [selectedTx, setSelectedTx] = useState(null);
   const [filter, setFilter] = useState<"All" | "Sent" | "Received">("All");
   const [searchDate, setSearchDate] = useState("");
   const [page, setPage] = useState(1);
 
-  // Filtering
+  // Filtering logic (bypassed in compact mode)
   let filtered = filter === "All"
     ? DUMMY_TRANSACTIONS
     : DUMMY_TRANSACTIONS.filter(tx => tx.type === filter);
@@ -170,73 +175,101 @@ export default function Transactions() {
   if (searchDate) {
     filtered = filtered.filter(tx => {
       const txDateObj = parseDateString(tx.date);
-      // Compare only yyyy-mm-dd part
       return txDateObj &&
         txDateObj.toISOString().slice(0, 10) === searchDate;
     });
   }
 
-  // Pagination logic
-  const pageCount = Math.ceil(filtered.length / PER_PAGE);
-  const pagedTxs = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  // Show only the latest 3 in compact mode
+  const txsToShow = compact
+    ? DUMMY_TRANSACTIONS.slice(0, 3)
+    : filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  function handleSetFilter(newFilter) {
-    setFilter(newFilter);
-    setPage(1);
+  // Pagination variables (full mode only)
+  const pageCount = Math.ceil(filtered.length / PER_PAGE);
+
+  function renderEmptyState() {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-12">
+        <XCircle className="w-10 h-10 text-red-400 mb-2" />
+        <span className="text-center text-lg text-gray-400">No transactions found</span>
+      </div>
+    );
   }
 
-  function handleDateChange(e) {
-    setSearchDate(e.target.value);
-    setPage(1);
+  function renderNotConnectedState() {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-12">
+        <Wallet className="w-10 h-10 text-gray-400 mb-2" />
+        <span className="text-center text-lg text-gray-400">Connect your wallet to view transactions</span>
+      </div>
+    );
   }
 
   return (
     <div className="w-full flex justify-center mt-8 px-2 sm:px-4">
       <div className="w-full max-w-lg">
         <div className="bg-[transparent]/80 backdrop-blur-md rounded-2xl shadow-lg">
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
-            <div className="flex items-center gap-2">
-              {["All", "Sent", "Received"].map(type => (
-                <button
-                  key={type}
-                  className={`px-5 py-2 rounded-full text-base font-semibold transition
-                    ${filter === type
-                      ? "bg-[#96a954] text-[#232628]"
-                      : "bg-[#1e2127] text-white hover:bg-[#2f3239]"}
-                  `}
-                  onClick={() => handleSetFilter(type)}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <label className="text-white text-base font-medium" htmlFor="tx-date">Filter by date:</label>
-              <input
-                id="tx-date"
-                type="date"
-                value={searchDate}
-                onChange={handleDateChange}
-                className="bg-[#1e2127] border-none rounded-full px-4 py-2 text-white font-mono focus:ring-2 focus:ring-[#96a954]"
-                max={new Date().toISOString().slice(0, 10)}
-              />
-              {searchDate && (
-                <button
-                  tabIndex={-1}
-                  aria-label="Clear date"
-                  onClick={() => setSearchDate("")}
-                  className="text-gray-400 text-lg ml-1 px-2 pb-1"
-                >×</button>
+          {/* Only show filter in non-compact mode */}
+          {!compact && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+              <div className="flex items-center gap-2">
+                {["All", "Sent", "Received"].map(type => (
+                  <button
+                    key={type}
+                    className={`px-5 py-2 rounded-full text-base font-semibold transition
+                      ${filter === type
+                        ? "bg-[#96a954] text-[#232628]"
+                        : "bg-[#1e2127] text-white hover:bg-[#2f3239]"}
+                    `}
+                    onClick={() => {
+                      setFilter(type);
+                      setPage(1);
+                    }}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+              {connected && (
+                <div className="ml-auto flex flex-col gap-1">
+                  <label className="text-white text-base font-medium" htmlFor="tx-date">
+                    Filter by date:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      id="tx-date"
+                      type="date"
+                      value={searchDate}
+                      onChange={e => {
+                        setSearchDate(e.target.value);
+                        setPage(1);
+                      }}
+                      className="bg-[#1e2127] border-none rounded-full px-4 py-2 text-white font-mono focus:ring-2 focus:ring-[#96a954]"
+                      max={new Date().toISOString().slice(0, 10)}
+                    />
+                    {searchDate && (
+                      <button
+                        tabIndex={-1}
+                        aria-label="Clear date"
+                        onClick={() => setSearchDate("")}
+                        className="text-gray-400 text-lg ml-1 px-2 pb-1"
+                      >×</button>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
-          </div>
+          )}
+
           {/* Transactions List */}
-          <div className="space-y-5 min-h-[340px]">
-            {pagedTxs.length === 0 ? (
-              <div className="text-center text-lg text-gray-400 py-8">No transactions found</div>
+          <div className="space-y-5 min-h-[180px]">
+            {!connected ? (
+              renderNotConnectedState()
+            ) : txsToShow.length === 0 ? (
+              renderEmptyState()
             ) : (
-              pagedTxs.map(tx => (
+              txsToShow.map(tx => (
                 <button
                   key={tx.id}
                   onClick={() => setSelectedTx(tx)}
@@ -310,24 +343,36 @@ export default function Transactions() {
               ))
             )}
           </div>
-          {/* Pagination */}
-          <div className="flex items-center justify-center mt-8 gap-2">
-            <button
-              className="px-4 py-2 bg-[#1e2127] text-[#96a954] rounded-full font-semibold disabled:opacity-50"
-              disabled={page === 1}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-            >
-              Prev
-            </button>
-            <span className="text-white text-base px-2">{page} / {pageCount || 1}</span>
-            <button
-              className="px-4 py-2 bg-[#1e2127] text-[#96a954] rounded-full font-semibold disabled:opacity-50"
-              disabled={page === pageCount || pageCount === 0}
-              onClick={() => setPage(p => Math.min(pageCount, p + 1))}
-            >
-              Next
-            </button>
-          </div>
+
+          {/* Compact: Show "View all transactions" link */}
+          {compact && (
+            <div className="flex justify-center py-4">
+              <Link href="/transactions" className="text-[#96a954] font-bold underline hover:no-underline text-center text-base transition">
+                View all transactions
+              </Link>
+            </div>
+          )}
+
+          {/* Pagination for full view */}
+          {!compact && connected && filtered.length > 0 && (
+            <div className="flex items-center justify-center mt-8 gap-2">
+              <button
+                className="px-4 py-2 bg-[#1e2127] text-[#96a954] rounded-full font-semibold disabled:opacity-50"
+                disabled={page === 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+              >
+                Prev
+              </button>
+              <span className="text-white text-base px-2">{page} / {pageCount || 1}</span>
+              <button
+                className="px-4 py-2 bg-[#1e2127] text-[#96a954] rounded-full font-semibold disabled:opacity-50"
+                disabled={page === pageCount || pageCount === 0}
+                onClick={() => setPage(p => Math.min(pageCount, p + 1))}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </div>
       {selectedTx && (

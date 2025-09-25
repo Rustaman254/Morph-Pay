@@ -98,8 +98,8 @@ export default function Header() {
     const pathname = usePathname();
 
     const navLinks = [
-        { href: "/", label: "Send", icon: Send },
-        // { href: "/send", label: "Swap", icon: LayoutDashboard },
+        { href: "/", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/send", label: "Send", icon: Send },
         // { href: "/receive", label: "Receive", icon: Download },
         { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
     ];

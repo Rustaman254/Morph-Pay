@@ -196,7 +196,7 @@ export default function BuySellSend({ mode = "swap" }: { mode?: Mode }) {
   }
 
   return (
-    <div className="w-full flex justify-center mt-4 px-2 sm:px-4 md:px-0">
+    <div className="flex items-start justify-start px-2 sm:px-4 md:px-0">
       <div className="w-full max-w-[430px] sm:max-w-lg md:max-w-2xl">
         {/* Tabs / Deposit */}
         {mode === "send" && (

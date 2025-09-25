@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export default function Footer() {
   return (
-    <footer className="hidden sm:flex w-full items-center justify-center gap-5 py-6 text-sm text-gray-400">
+    <footer className="hidden sm:flex fixed bottom-0 left-0 w-full items-center justify-center gap-5 py-6 text-sm text-gray-400 z-50">
       <div className="flex items-center gap-2">
         <Image
           aria-hidden
