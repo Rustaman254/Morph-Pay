@@ -33,7 +33,6 @@ export const register = async (req: Request, res: Response) => {
         const users = db.collection('users');
         const businesses = db.collection('businesses');
 
-        // Check for existing peer
         const existPeer = await users.findOne({ contact });
         if (existPeer) {
             return res.status(409).json({ error: "Contact already registered" });
@@ -41,7 +40,7 @@ export const register = async (req: Request, res: Response) => {
 
         let businessId: string | undefined = undefined;
 
-        // Register business if business details provided
+        // Register business 
         if (businessName && legalEntityType && businessEmail) {
             const existBiz = await businesses.findOne({ contactEmail: businessEmail });
             if (existBiz) {
@@ -66,7 +65,7 @@ export const register = async (req: Request, res: Response) => {
             }
         }
 
-        // Register peer (agent or non-agent)
+        // Register peer
         const passwordHash = await bcrypt.hash(password, 12);
         const wallet = Wallet.createRandom();
         const did = `did:ethr:${wallet.address}`;

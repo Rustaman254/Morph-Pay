@@ -9,7 +9,7 @@
     "dev": "nodemon",
     "build": "tsc"
   },
-  "author": "",
+  "author": "Anwar Magara",
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^6.0.0",
