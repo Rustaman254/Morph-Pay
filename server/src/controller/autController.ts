@@ -1,12 +1,7 @@
 import type { Request, Response } from 'express';
 import { Wallet } from 'ethers';
 import bcrypt from 'bcrypt';
-
-interface RegisterRequest {
-    phone?: string;
-    email?: string;
-    password: string;
-}
+import { connectDB } from '../config/db'
 
 function isEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -34,7 +29,25 @@ export const register = async (req: Request, res: Response) => {
         const wallet = Wallet.createRandom();
         const did = `did:ethr:${wallet.address}`;
 
-        // TODO: Save { contact, passwordHash, did, address, publicKey } in your database
+        // TODO: generate user's Models
+        const db = await connectDB();
+        const users = db.collection('users');
+
+        const exist = await users.findOne({contact});
+        if (exist) {
+            res.status(409).json({error: "Contact already registered"})
+        }
+
+        const userDoc = {
+            contact,
+            passwordHash,
+            did,    
+            address: wallet.address,
+            publicKey: wallet.publicKey,
+            cretedAt: new Date()
+        }
+
+        await users.insertOne(userDoc);
 
         res.json({
             did,
@@ -48,3 +61,4 @@ export const register = async (req: Request, res: Response) => {
         });
     }
 }
+
