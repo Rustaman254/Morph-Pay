@@ -1,5 +1,5 @@
 // models/Order.ts
-export interface Order {
+export default interface Order {
   _id?: string;
   type: 'deposit' | 'withdrawal';
   status: 'open' | 'matched' | 'escrowed' | 'fulfilled' | 'cancelled' | 'disputed';
