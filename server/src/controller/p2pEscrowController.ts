@@ -257,6 +257,7 @@ export async function sellStablecoin(req: Request, res: Response): Promise<void>
   }
 }
 
+// to the peers to mark as fulfilled
 export async function depositConfirm(req: Request, res: Response): Promise<void> {
   const { orderId } = req.params;
   try {
@@ -265,60 +266,109 @@ export async function depositConfirm(req: Request, res: Response): Promise<void>
       res.status(400).json({ error: 'txHash required' });
       return;
     }
+
+    const db = await connectDB();
+    const orders = db.collection('orders');
+    
     const updated = await orders.findOneAndUpdate(
       { orderId },
-      { $set: { status: 'escrowed', escrowTxHash: txHash, updatedAt: new Date() } },
+      { $set: { status: 'fulfilled', updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+
+    if (!updated) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
+    res.status(200).json({
+      message: 'Deposit confirmed. Order fulfilled.',
+      order: updated
+    });
+    
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+// To the businesses
+export async function fiatConfirm(req: Request, res: Response): Promise<void> {
+  const { orderId } = req.params;
+  try {
+    if (!orderId) {
+      res.status(400).json({ error: 'Missing orderId' });
+      return;
+    }
+
+    const db = await connectDB();
+    const orders = db.collection('orders');
+
+    // Mark order as "fulfilled" to confirm fiat payout
+    const updated = await orders.findOneAndUpdate(
+      { orderId },
+      { $set: { status: 'fulfilled', updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+
+    if (!updated?.value) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
+
+    res.status(200).json({
+      message: 'Fiat confirmed; order fulfilled',
+      order: updated.value
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+}
+
+export async function dispute(req: Request, res: Response): Promise<void> {
+  const { orderId } = req.params;
+  try {
+    if (!orderId) {
+      res.status(400).json({ error: 'Missing orderId' });
+      return;
+    }
+    const db = await connectDB();
+    const orders = db.collection('orders');
+
+    const updated = await orders.findOneAndUpdate(
+      { orderId },
+      { $set: { status: 'disputed', updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
     if (!updated?.value) {
       res.status(404).json({ error: 'Order not found' });
       return;
     }
-    res.status(200).json({ order: updated.value });
+    res.status(200).json({ message: 'Order marked disputed', order: updated.value });
   } catch (e: any) {
-    res.status(404).json({ error: e.message });
-  }
-}
-
-export async function fiatConfirm(req: Request, res: Response): Promise<void> {
-  const { orderId } = req.params;
-  try {
-    // Escrow disabled: simply mark as fulfilled
-    const updated = await orders.findOneAndUpdate(
-      { orderId },
-      { $set: { status: 'fulfilled', updatedAt: new Date() } },
-      { returnDocument: 'after' }
-    );
-    res.status(200).json({ message: 'Fiat confirmed; order fulfilled', order: updated?.value ?? null });
-  } catch (e: any) {
-    res.status(404).json({ error: e.message });
-  }
-}
-
-export async function dispute(req: Request, res: Response): Promise<void> {
-  try {
-    const { orderId } = req.params as { orderId: string };
-    const updated = await orders.findOneAndUpdate(
-      { orderId },
-      { $set: { status: 'disputed', updatedAt: new Date() } },
-      { returnDocument: 'after' }
-    );
-    res.status(200).json({ message: 'Order marked disputed', order: updated?.value ?? null });
-  } catch (e: any) {
-    res.status(404).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
 
 export async function resolve(req: Request, res: Response): Promise<void> {
+  const { orderId } = req.params;
   try {
-    const { orderId } = req.params as { orderId: string };
+    if (!orderId) {
+      res.status(400).json({ error: 'Missing orderId' });
+      return;
+    }
+    const db = await connectDB();
+    const orders = db.collection('orders');
+
     const updated = await orders.findOneAndUpdate(
       { orderId },
       { $set: { status: 'fulfilled', updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
-    res.status(200).json({ message: 'Dispute resolved; order fulfilled', order: updated?.value ?? null });
+    if (!updated?.value) {
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
+    res.status(200).json({ message: 'Dispute resolved; order fulfilled', order: updated.value });
   } catch (e: any) {
-    res.status(404).json({ error: e.message });
+    res.status(500).json({ error: e.message });
   }
 }
