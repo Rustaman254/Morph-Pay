@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import { PrivyClient } from "@privy-io/node";
 import { connectDB } from "../config/db";
 
-const privy = new PrivyClient({ 
+const privy = new PrivyClient({
   apiKey: process.env.PRIVY_API_KEY!,
   appSecret: process.env.PRIVY_APP_SECRET!
 });
@@ -51,14 +51,14 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
       });
       return;
     }
-    const tokenAmount = BigInt(amount); 
+    const tokenAmount = BigInt(amount);
 
     // Agent selection
     const candidateAgents = await usersCol
       .find({ status: "active" })
       .limit(50)
       .toArray();
-      
+
     let selectedPeer: any = null;
     for (const agent of candidateAgents) {
       try {
@@ -67,7 +67,7 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
           selectedPeer = agent;
           break;
         }
-      } catch {}
+      } catch { }
     }
     if (!selectedPeer || !selectedPeer.privyWalletId) {
       res.status(409).json({ error: "No available liquidity provider with sufficient balance" });
@@ -146,43 +146,63 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
 
 
 export async function sellStablecoin(req: Request, res: Response): Promise<void> {
-  const { businessId, stablecoin, amount, businessWallet } = req.body as { businessId: string; stablecoin: string; amount: number | string; businessWallet: string };
   try {
+    const { businessId, stablecoin, amount, businessWallet } = req.body as {
+      businessId: string;
+      stablecoin: string;
+      amount: number | string;
+      businessWallet: string;
+    };
+
     if (!businessId || !stablecoin || !amount || !businessWallet) {
       res.status(400).json({ error: "Missing required fields" });
       return;
     }
     if (!ethers.isAddress(stablecoin)) {
-      res.status(400).json({ error: 'Invalid stablecoin address' });
+      res.status(400).json({ error: "Invalid stablecoin address" });
       return;
     }
+
+    const db = await connectDB();
+    const orders = db.collection("orders");
+    const usersCol = db.collection("users");
+
+    // Configure provider (as in buyStablecoin)
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL!);
+
     const code = await provider.getCode(stablecoin);
-    if (!code || code === '0x') {
-      res.status(400).json({ error: 'No contract deployed at stablecoin address' });
+    if (!code || code === "0x") {
+      res.status(400).json({ error: "No contract deployed at stablecoin address" });
       return;
     }
-    // For selling stablecoin: the business sends tokens to a selected peer who pays fiat off-chain
+
     const erc20Readable = [
       "function decimals() view returns (uint8)",
       "function balanceOf(address account) view returns (uint256)"
     ];
     const token = new ethers.Contract(stablecoin, erc20Readable, provider);
-    console.log(token);
+
     let decimals: number;
     try {
-      decimals = Number(await (token as any).decimals());
-      console.log(decimals);
+      decimals = Number(await token.decimals());
     } catch (err: any) {
-      res.status(400).json({ error: `Failed to read token decimals: ${err?.message || 'unknown error'}` });
+      res.status(400).json({
+        error: `Failed to read token decimals: ${err?.message || "unknown error"}`,
+      });
       return;
     }
+
+    // Convert user amount (human decimals) to contract units
     const tokenAmount = ethers.parseUnits(String(amount), decimals);
 
-    // Select an active agent as the buyer of tokens (no on-chain balance check needed here), prefer active agents
-    const usersCol = db.collection('users');
-    const selectedPeer = await usersCol.findOne({ isAgent: true, status: 'active' });
+    // Select an agent (buyer) who has privyWalletId (as in buyStablecoin)
+    const selectedPeer = await usersCol.findOne({
+      isAgent: true,
+      status: "active",
+      privyWalletId: { $exists: true, $ne: null }
+    });
     if (!selectedPeer) {
-      res.status(409).json({ error: 'No available buyer (agent) found' });
+      res.status(409).json({ error: "No available buyer (agent) found" });
       return;
     }
 
@@ -190,41 +210,46 @@ export async function sellStablecoin(req: Request, res: Response): Promise<void>
     const orderId = ethers.id(`${businessId}:${Date.now()}:${randomSalt}:sell`);
     const now = new Date();
     const doc = {
-      type: 'withdrawal', // business sells stablecoin
-      status: 'matched',
-      amount: Number(amount), // fiat amount expected
+      type: "withdrawal",
+      status: "matched",
+      amount: Number(amount), // This is the fiat expected for the sale (not contract units)
       token: stablecoin,
       businessId,
       peerId: selectedPeer?._id?.toString?.(),
       confirmations: { business: false, peer: true, time: undefined },
       createdAt: now,
       updatedAt: now,
-      details: 'Sell stablecoin order (no escrow)',
+      details: "Sell stablecoin order (off-chain settlement, peer payout)",
       orderId,
-      tokenAmount: tokenAmount.toString(),
+      tokenAmount: tokenAmount.toString(), // in contract units
       peerWallet: selectedPeer.address,
+      peerPrivyWalletId: selectedPeer.privyWalletId,
       businessWallet
     };
     const insert = await orders.insertOne(doc as any);
 
-    // Build ERC20 transfer calldata for the business to send tokens to the peer wallet
+    // Build ERC20 transfer calldata for the seller to transfer tokens to the agent/peer
     const erc20Iface = new ethers.Interface([
       "function transfer(address to, uint256 amount) returns (bool)"
     ]);
-    const transferCalldata = erc20Iface.encodeFunctionData('transfer', [selectedPeer.address, tokenAmount]);
+    const transferCalldata = erc20Iface.encodeFunctionData('transfer', [
+      selectedPeer.address,
+      tokenAmount.toString(),
+    ]);
 
     res.status(201).json({
       orderId,
       orderDbId: insert.insertedId?.toString?.(),
-      peer: { id: selectedPeer?._id?.toString?.(), wallet: selectedPeer.address },
+      peer: { id: selectedPeer?._id?.toString?.(), wallet: selectedPeer.address, privyWalletId: selectedPeer.privyWalletId },
       token: stablecoin,
       tokenDecimals: decimals,
       tokenAmount: tokenAmount.toString(),
       instructions: {
         from: businessWallet,
         to: stablecoin,
-        function: 'transfer',
-        calldata: transferCalldata
+        function: "transfer",
+        calldata: transferCalldata,
+        value: "0x0"
       }
     });
   } catch (e: any) {
