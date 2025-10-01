@@ -309,7 +309,7 @@ export async function fiatConfirm(req: Request, res: Response): Promise<void> {
       { returnDocument: 'after' }
     );
 
-    if (!updated?.value) {
+    if (!updated) {
       res.status(404).json({ error: 'Order not found' });
       return;
     }
@@ -338,7 +338,7 @@ export async function dispute(req: Request, res: Response): Promise<void> {
       { $set: { status: 'disputed', updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
-    if (!updated?.value) {
+    if (!updated) {
       res.status(404).json({ error: 'Order not found' });
       return;
     }
@@ -363,7 +363,7 @@ export async function resolve(req: Request, res: Response): Promise<void> {
       { $set: { status: 'fulfilled', updatedAt: new Date() } },
       { returnDocument: 'after' }
     );
-    if (!updated?.value) {
+    if (!updated) {
       res.status(404).json({ error: 'Order not found' });
       return;
     }
