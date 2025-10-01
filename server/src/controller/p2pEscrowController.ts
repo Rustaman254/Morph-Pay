@@ -1,104 +1,135 @@
 import type { Request, Response } from "express";
 import { ethers } from "ethers";
+import { PrivyClient } from "@privy-io/node";
 import { connectDB } from "../config/db";
-import { signer, provider } from "../config/constants";
 
-const db = await connectDB();
-const orders = db.collection('orders');
+const privy = new PrivyClient({ 
+  apiKey: process.env.PRIVY_API_KEY!,
+  appSecret: process.env.PRIVY_APP_SECRET!
+});
 
 export async function buyStablecoin(req: Request, res: Response): Promise<void> {
-  const { businessId, stablecoin, amount, businessWallet } = req.body as { businessId: string; stablecoin: string; amount: number | string; businessWallet: string };
-  
   try {
+    const { businessId, stablecoin, amount, businessWallet } = req.body as {
+      businessId: string;
+      stablecoin: string;
+      amount: string; // expected in contract units!
+      businessWallet: string;
+    };
+
     if (!businessId || !stablecoin || !amount || !businessWallet) {
       res.status(400).json({ error: "Missing required fields" });
       return;
     }
-
     if (!ethers.isAddress(stablecoin)) {
-      res.status(400).json({ error: 'Invalid stablecoin address' });
-      return;
-    }
-    const code = await provider.getCode(stablecoin);
-    if (!code || code === '0x') {
-      res.status(400).json({ error: 'No contract deployed at stablecoin address' });
+      res.status(400).json({ error: "Invalid stablecoin address" });
       return;
     }
 
-    // Read decimals and balance using provider only
+    const db = await connectDB();
+    const orders = db.collection("orders");
+    const usersCol = db.collection("users");
+
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL!);
+    const code = await provider.getCode(stablecoin);
+    if (!code || code === "0x") {
+      res.status(400).json({ error: "No contract deployed at stablecoin address" });
+      return;
+    }
+
     const erc20Readable = [
       "function decimals() view returns (uint8)",
-      "function balanceOf(address account) view returns (uint256)"
+      "function balanceOf(address account) view returns (uint256)",
     ];
     const token = new ethers.Contract(stablecoin, erc20Readable, provider);
-    let decimals: number;
+    let decimals = 18; // assume 18 if API fails
     try {
       decimals = Number(await token.decimals());
     } catch (err: any) {
-      res.status(400).json({ error: `Failed to read token decimals: ${err?.message || 'unknown error'}` });
+      res.status(400).json({
+        error: `Failed to read token decimals: ${err?.message || "unknown error"}`,
+      });
       return;
     }
-    const tokenAmount = BigInt(amount);
-    console.log(tokenAmount);
+    const tokenAmount = BigInt(amount); 
 
-    const usersCol = db.collection('users');
-    const candidateAgents = await usersCol.find({ isAgent: true, status: 'active' }).limit(50).toArray();
+    // Agent selection
+    const candidateAgents = await usersCol
+      .find({ status: "active" })
+      .limit(50)
+      .toArray();
+      
     let selectedPeer: any = null;
     for (const agent of candidateAgents) {
       try {
         const bal = await token.balanceOf(agent.address);
-        console.log(bal);
-        if (bal >= tokenAmount) { selectedPeer = agent; break; }
+        if (BigInt(bal) >= tokenAmount) {
+          selectedPeer = agent;
+          break;
+        }
       } catch {}
     }
-    if (!selectedPeer) {
-      res.status(409).json({ error: 'No available liquidity provider with sufficient balance' });
+    if (!selectedPeer || !selectedPeer.privyWalletId) {
+      res.status(409).json({ error: "No available liquidity provider with sufficient balance" });
       return;
     }
 
-    // ---- ACTUAL TRANSFER SECTION ---- //
-    // ABI for transfer
-    const erc20Abi = [
-      "function transfer(address to, uint256 amount) returns (bool)"
-    ];
+    // ERC20 transfer call encoding
+    const erc20Abi = ["function transfer(address to, uint256 amount) returns (bool)"];
+    const iface = new ethers.Interface(erc20Abi);
+    const data = iface.encodeFunctionData("transfer", [
+      businessWallet,
+      tokenAmount.toString(),
+    ]);
+    let txHash: string;
+    try {
+      // Use correct CAIP2 and chain_id for your network!
+      const caip2 = "eip155:534351"; // Scroll Mainnet, use "eip155:534354" for Scroll Sepolia!
+      const chainId = 534351; // or 534354 for testnet
 
-    // IMPORTANT: Signer must correspond to the selectedPeer
-    // (This example uses a backend wallet/signer for demonstration)
-    // In production, you must ensure access to the right key for the selectedPeer!
+      const privyTx = await privy.wallets().ethereum().sendTransaction(
+        selectedPeer.privyWalletId,
+        {
+          caip2,
+          params: {
+            transaction: {
+              to: stablecoin,
+              value: "0x0",
+              data: data,
+              chain_id: chainId,
+            },
+          },
+        }
+      );
+      txHash = privyTx.hash;
+    } catch (e: any) {
+      res.status(500).json({ error: `Token transfer failed: ${e?.message || "unknown error"}` });
+      return;
+    }
 
-    // Create a signer for the peer (you must securely handle private keys for multiple agents!)
-    // For demo with one backend agent, just use 'signer'
-    const agentToken = new ethers.Contract(stablecoin, erc20Abi, signer);
-    console.log(agentToken);
-
-    // Send token transfer on-chain
-    const tx = await agentToken.transfer(businessWallet, tokenAmount);
-    const receipt = await tx.wait();
-
-    // Create order record after transfer (so you know the tx result/hash)
+    // Write order
     const randomSalt = ethers.hexlify(ethers.randomBytes(8));
     const orderId = ethers.id(`${businessId}:${Date.now()}:${randomSalt}`);
     const now = new Date();
     const doc = {
-      type: 'deposit',
-      status: 'matched',
-      amount: Number(amount),
+      type: "deposit",
+      status: "matched",
+      amount: tokenAmount.toString(),
       token: stablecoin,
       businessId,
       peerId: selectedPeer?._id?.toString?.(),
       confirmations: { business: false, peer: true, time: undefined },
       createdAt: now,
       updatedAt: now,
-      details: 'Buy stablecoin order (on-chain transfer)',
+      details: "Buy stablecoin order (on-chain transfer)",
       orderId,
       tokenAmount: tokenAmount.toString(),
       peerWallet: selectedPeer.address,
       businessWallet,
-      txHash: receipt.transactionHash
+      txHash,
     };
     const insert = await orders.insertOne(doc as any);
 
-    // Respond with the order and tx hash
     res.status(201).json({
       orderId,
       orderDbId: insert.insertedId?.toString?.(),
@@ -106,13 +137,13 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
       token: stablecoin,
       tokenDecimals: decimals,
       tokenAmount: tokenAmount.toString(),
-      txHash: receipt.transactionHash
+      txHash,
     });
-
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
 }
+
 
 export async function sellStablecoin(req: Request, res: Response): Promise<void> {
   const { businessId, stablecoin, amount, businessWallet } = req.body as { businessId: string; stablecoin: string; amount: number | string; businessWallet: string };
@@ -136,9 +167,11 @@ export async function sellStablecoin(req: Request, res: Response): Promise<void>
       "function balanceOf(address account) view returns (uint256)"
     ];
     const token = new ethers.Contract(stablecoin, erc20Readable, provider);
+    console.log(token);
     let decimals: number;
     try {
       decimals = Number(await (token as any).decimals());
+      console.log(decimals);
     } catch (err: any) {
       res.status(400).json({ error: `Failed to read token decimals: ${err?.message || 'unknown error'}` });
       return;

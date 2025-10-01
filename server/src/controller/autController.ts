@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { Wallet } from 'ethers';
 import bcrypt from 'bcrypt';
+import { PrivyClient } from '@privy-io/node';
 import { connectDB } from '../config/db';
 
 // Validation functions
@@ -11,12 +11,18 @@ function isPhone(phone: string): boolean {
     return /^\+[1-9]\d{9,14}$/.test(phone);
 }
 
-// Registration Controller
+// Privy SDK initialization
+const privy = new PrivyClient({
+    appId: process.env.PRIVY_APP_ID!,
+    appSecret: process.env.PRIVY_APP_SECRET!
+});
+
+// Registration Controller with privyWalletId added
 export const register = async (req: Request, res: Response) => {
     try {
         const {
             phone, email, password, country, fname, lname,
-            isAgent, 
+            isAgent,
             businessName, legalEntityType, registrationNumber,
             businessEmail, website
         } = req.body;
@@ -40,22 +46,24 @@ export const register = async (req: Request, res: Response) => {
 
         let businessId: string | undefined = undefined;
 
-        // Register business 
+        // Create wallet via Privy for business if needed
+        let bizWalletData;
         if (businessName && legalEntityType && businessEmail) {
             const existBiz = await businesses.findOne({ contactEmail: businessEmail });
             if (existBiz) {
                 businessId = existBiz._id.toString();
             } else {
-                const bizWallet = Wallet.createRandom();
+                bizWalletData = await privy.wallets().create({ chain_type: 'ethereum' });
                 const bizDoc = {
                     businessName,
                     legalEntityType,
                     registrationNumber,
                     contactEmail: businessEmail,
-                    address: bizWallet.address,
-                    publicKey: bizWallet.publicKey,
+                    address: bizWalletData.address,
+                    publicKey: bizWalletData.publicKey,
+                    privyWalletId: bizWalletData.id, // Store Privy wallet ID
                     website,
-                    isApproved: false,      
+                    isApproved: false,
                     kycStatus: 'pending',
                     createdAt: new Date(),
                     updatedAt: new Date()
@@ -65,10 +73,12 @@ export const register = async (req: Request, res: Response) => {
             }
         }
 
-        // Register peer
+        // Hash password
         const passwordHash = await bcrypt.hash(password, 12);
-        const wallet = Wallet.createRandom();
-        const did = `did:ethr:${wallet.address}`;
+
+        // Create wallet via Privy for user
+        const userWalletData = await privy.wallets().create({ chain_type: 'ethereum' });
+        const did = `did:ethr:${userWalletData.address}`;
 
         const userDoc = {
             contact,
@@ -77,8 +87,9 @@ export const register = async (req: Request, res: Response) => {
             country,
             passwordHash,
             did,
-            address: wallet.address,
-            publicKey: wallet.publicKey,
+            address: userWalletData.address,
+            publicKey: userWalletData.publicKey,
+            privyWalletId: userWalletData.id, // Store Privy wallet ID
             isAgent: isAgent || false,
             businessId,
             status: 'active',
@@ -90,8 +101,9 @@ export const register = async (req: Request, res: Response) => {
 
         res.json({
             did,
-            address: wallet.address,
-            publicKey: wallet.publicKey,
+            address: userWalletData.address,
+            publicKey: userWalletData.publicKey,
+            privyWalletId: userWalletData.id, // Return Privy wallet ID for reference
             contact,
             isAgent: userDoc.isAgent,
             businessId

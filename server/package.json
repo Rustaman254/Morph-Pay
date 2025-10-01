@@ -12,6 +12,7 @@
   "author": "Anwar Magara",
   "license": "ISC",
   "dependencies": {
+    "@privy-io/node": "^0.2.0",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.2.2",
     "ethers": "^6.15.0",
