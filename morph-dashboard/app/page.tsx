@@ -21,7 +21,7 @@ export default function Home() {
   if (isSignedIn) {
     return (
       <div className="bg-[#f9f8f9]">
-        <Dashboard />
+        <Dashboard  />
       </div>
     );
   }

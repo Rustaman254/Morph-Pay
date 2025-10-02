@@ -102,6 +102,7 @@ export default function AuthPage() {
             toast.success("Registration successful!");
             setTimeout(() => {
                 router.replace('/');
+                window.location.reload();
             }, 1200);
         } catch (err) {
             if (axios.isAxiosError(err) && err.response?.status === 409) {
@@ -134,6 +135,7 @@ export default function AuthPage() {
             toast.success("Logged in successfully!");
             setTimeout(() => {
                 router.replace('/');
+                window.location.reload();
             }, 1200);
         } catch (err) {
             toast.error(err.response?.data?.error || "Login failed.");
@@ -167,6 +169,7 @@ export default function AuthPage() {
                                     onChange={handleLoginChange}
                                     className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
                                     required
+                                    disabled={loading}
                                 />
                             </div>
                             <div className="mb-4">
@@ -178,19 +181,30 @@ export default function AuthPage() {
                                     onChange={handleLoginChange}
                                     className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
                                     required
+                                    disabled={loading}
                                 />
                             </div>
                             <Button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full cursor-pointer rounded-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-8 px-8 flex items-center justify-center transition"
+                                className={`w-full cursor-pointer rounded-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-8 px-8 flex items-center justify-center transition ${loading ? "opacity-75 cursor-not-allowed" : ""}`}
                             >
-                                {loading ? "Logging In..." : "Login"}
+                                {loading ? (
+                                    <>
+                                        <span className="px-6">Logging In...</span>
+                                        <svg className="animate-spin ml-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8h8a8 8 0 01-8 8V12H4z"></path>
+                                        </svg>
+                                    </>
+                                ) : (
+                                    "Login"
+                                )}
                             </Button>
                         </form>
                         <div className="text-center mt-6">
                             <span>Don't have an account? </span>
-                            <button className="text-orange-600 font-bold" onClick={() => setShowSignup(true)}>
+                            <button className="text-orange-600 font-bold" disabled={loading} onClick={() => setShowSignup(true)}>
                                 Sign up
                             </button>
                         </div>
@@ -209,6 +223,7 @@ export default function AuthPage() {
                                         onChange={handleSignupChange}
                                         className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
                                         required
+                                        disabled={loading}
                                     />
                                 </div>
                                 <div className="relative w-1/2">
@@ -221,6 +236,7 @@ export default function AuthPage() {
                                         onChange={handleSignupChange}
                                         className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
                                         required
+                                        disabled={loading}
                                     />
                                 </div>
                             </div>
@@ -233,6 +249,7 @@ export default function AuthPage() {
                                         onChange={handleSignupCountryChange}
                                         className="pl-11 pr-4 py-5 rounded-full bg-white border border-gray-200 text-base focus:outline-none w-full appearance-none"
                                         required
+                                        disabled={loading}
                                     >
                                         <option value="" disabled>Select Country</option>
                                         {COUNTRY_LIST.map(({ label, code }) => (
@@ -257,7 +274,7 @@ export default function AuthPage() {
                                             className="flex-1 rounded-r-full bg-white border-t border-b border-r border-gray-200 py-5 pl-3 pr-4 text-base focus:outline-none"
                                             pattern="[0-9]{6,15}"
                                             required
-                                            disabled={!countryPrefix}
+                                            disabled={!countryPrefix || loading}
                                         />
                                     </div>
                                 </div>
@@ -273,6 +290,7 @@ export default function AuthPage() {
                                         onChange={handleSignupChange}
                                         className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
                                         required
+                                        disabled={loading}
                                     />
                                 </div>
                                 <div className="relative w-1/2">
@@ -285,21 +303,34 @@ export default function AuthPage() {
                                         onChange={handleSignupChange}
                                         className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
                                         required
+                                        disabled={loading}
                                     />
                                 </div>
                             </div>
                             <Button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full cursor-pointer rounded-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-8 px-8 flex items-center justify-center transition"
+                                className={`w-full cursor-pointer rounded-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-8 px-8 flex items-center justify-center transition ${loading ? "opacity-75 cursor-not-allowed" : ""}`}
                             >
-                                <span className="px-6">{loading ? "Signing Up..." : "Sign Up"}</span>
-                                <ArrowRight size={20} className="ml-3" />
+                                {loading ? (
+                                    <>
+                                        <span className="px-6">Signing Up...</span>
+                                        <svg className="animate-spin ml-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8h8a8 8 0 01-8 8V12H4z"></path>
+                                        </svg>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="px-6">Sign Up</span>
+                                        <ArrowRight size={20} className="ml-3" />
+                                    </>
+                                )}
                             </Button>
                         </form>
                         <div className="text-center mt-6">
                             <span>Already have an account? </span>
-                            <button className="text-orange-600 font-bold" onClick={() => setShowSignup(false)}>
+                            <button className="text-orange-600 font-bold" disabled={loading} onClick={() => setShowSignup(false)}>
                                 Login
                             </button>
                         </div>

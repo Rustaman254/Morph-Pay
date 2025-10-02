@@ -8,7 +8,7 @@ export default function Dashboard() {
     return (
         <div className="w-screen py-10 px-20">
             {/* Header */}
-            <Header mode="menu" active="analytics"/>
+            <Header mode="menu"/>
 
             {/* Greeting and Assistant */}
             <div className="flex items-center justify-between mb-10">
