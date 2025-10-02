@@ -8,7 +8,11 @@ function isEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 function isPhone(phone: string): boolean {
-    return /^\+[1-9]\d{9,14}$/.test(phone);
+    return /^\+[1-9]\d{9,14}$/.test(phone); // expects "+254..." not just "254..."
+}
+// Normalizes phone by removing the + sign if present
+function normalizePhone(phone: string): string {
+    return phone && phone[0] === '+' ? phone.slice(1) : phone;
 }
 
 const privy = new PrivyClient({
@@ -18,6 +22,7 @@ const privy = new PrivyClient({
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_fallback_secret";
 
+// REGISTER
 export const register = async (req: Request, res: Response) => {
     try {
         const {
@@ -27,10 +32,22 @@ export const register = async (req: Request, res: Response) => {
             businessEmail, website
         } = req.body;
 
-        const contact = phone || email;
-        if (!contact || !(isPhone(contact) || isEmail(contact))) {
+        // Normalize phone for storage & use in user document
+        let contact: string | undefined = undefined;
+        if (phone) {
+            if (!isPhone(phone)) {
+                return res.status(400).json({ error: "Invalid phone format." });
+            }
+            contact = normalizePhone(phone); // always without "+"
+        } else if (email) {
+            if (!isEmail(email)) {
+                return res.status(400).json({ error: "Invalid email format." });
+            }
+            contact = email;
+        } else {
             return res.status(400).json({ error: "Invalid phone number or email." });
         }
+
         if (!password || password.length < 8) {
             return res.status(400).json({ error: "Password must be at least 8 characters." });
         }
@@ -60,7 +77,7 @@ export const register = async (req: Request, res: Response) => {
                     contactEmail: businessEmail,
                     address: bizWalletData.address,
                     publicKey: bizWalletData.publicKey,
-                    privyWalletId: bizWalletData.id, 
+                    privyWalletId: bizWalletData.id,
                     website,
                     isApproved: false,
                     kycStatus: 'pending',
@@ -85,7 +102,7 @@ export const register = async (req: Request, res: Response) => {
             did,
             address: userWalletData.address,
             publicKey: userWalletData.publicKey,
-            privyWalletId: userWalletData.id, 
+            privyWalletId: userWalletData.id,
             isAgent: isAgent || false,
             businessId,
             status: 'active',
@@ -101,9 +118,9 @@ export const register = async (req: Request, res: Response) => {
             fname: userDoc.fname,
             lname: userDoc.lname,
             isAgent: userDoc.isAgent,
-            businessId, 
+            businessId,
         };
-        
+
         const token = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: "7d" });
 
         res.json({
@@ -123,23 +140,26 @@ export const register = async (req: Request, res: Response) => {
     }
 };
 
-
+// LOGIN
 export const login = async (req: Request, res: Response) => {
     try {
-        const { contact, password } = req.body;
+        let { contact, password } = req.body;
 
-        if (!contact || !(isPhone(contact) || isEmail(contact))) {
+        if (!contact || (!isPhone(contact) && !isEmail(contact))) {
             return res.status(400).json({ error: "Invalid phone number or email." });
         }
+        // Normalize phone for lookup (if it's a phone)
+        if (isPhone(contact)) {
+            contact = normalizePhone(contact);
+        }
+
         if (!password) {
             return res.status(400).json({ error: "Password required." });
         }
 
         const db = await connectDB();
         const users = db.collection('users');
-
         const user = await users.findOne({ contact });
-
         if (!user) {
             return res.status(401).json({ error: "Invalid credentials." });
         }
@@ -159,7 +179,7 @@ export const login = async (req: Request, res: Response) => {
         };
 
         const token = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: "7d" });
-        
+
         res.json({
             token,
             did: user.did,
@@ -177,12 +197,15 @@ export const login = async (req: Request, res: Response) => {
     }
 };
 
+// RESET PASSWORD
 export const resetPassword = async (req: Request, res: Response) => {
     try {
-        const { contact, token, password } = req.body;
+        let { contact, token, password } = req.body;
         if (!contact || !token || !password || password.length < 8) {
             return res.status(400).json({ error: "All fields required and password must be at least 8 characters." });
         }
+        if (isPhone(contact)) contact = normalizePhone(contact);
+
         const db = await connectDB();
         const recoveries = db.collection('password_resets');
         const users = db.collection('users');
@@ -215,12 +238,14 @@ export const resetPassword = async (req: Request, res: Response) => {
     }
 };
 
+// RECOVER
 export const recover = async (req: Request, res: Response) => {
     try {
-        const { contact } = req.body;
-        if (!contact || !(isPhone(contact) || isEmail(contact))) {
+        let { contact } = req.body;
+        if (!contact || (!isPhone(contact) && !isEmail(contact))) {
             return res.status(400).json({ error: "Invalid phone number or email." });
         }
+        if (isPhone(contact)) contact = normalizePhone(contact);
 
         const db = await connectDB();
         const users = db.collection('users');
@@ -239,10 +264,7 @@ export const recover = async (req: Request, res: Response) => {
             { expiresIn: "30m" }
         );
 
-        console.log("account reset requested");
-
-        // TODO: Send token by email/SMS as reset url, ex:
-        // `http://localhost:5500/api/v1/auth/reset-password?token=${token}`
+        // TODO: Send token to user via email/SMS as reset URL
 
         return res.status(200).json({
             message: "If an account exists, recovery instructions have been sent."

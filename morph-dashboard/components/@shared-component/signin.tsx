@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Mail, User, Lock, Phone, Globe, ArrowRight, RefreshCcw } from "lucide-react";
+import { Mail, User, Lock, Phone, Globe, ArrowRight, RefreshCcw, Eye, EyeOff } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 const COUNTRY_LIST = [
@@ -19,6 +19,11 @@ export default function AuthPage() {
     const [showRecovery, setShowRecovery] = useState(false);
     const [countryPrefix, setCountryPrefix] = useState("");
     const [loading, setLoading] = useState(false);
+
+    // Reveal state for password inputs
+    const [loginPasswordVisible, setLoginPasswordVisible] = useState(false);
+    const [signupPasswordVisible, setSignupPasswordVisible] = useState(false);
+    const [resetPasswordVisible, setResetPasswordVisible] = useState(false);
 
     // Shared state for signup
     const [signupForm, setSignupForm] = useState({
@@ -36,6 +41,16 @@ export default function AuthPage() {
     });
     const [recoveryContact, setRecoveryContact] = useState("");
     const [defaultCountry, setDefaultCountry] = useState(COUNTRY_LIST[0]);
+
+    // Reset input state when switching forms
+    useEffect(() => {
+        setLoginForm({ contact: "", password: "" });
+        setLoginPasswordVisible(false);
+        setSignupPasswordVisible(false);
+    }, [showSignup]);
+    useEffect(() => {
+        setRecoveryContact("");
+    }, [showRecovery]);
 
     useEffect(() => {
         async function getDefaultCountry() {
@@ -99,6 +114,7 @@ export default function AuthPage() {
                 isAgent: false
             });
             localStorage.setItem("auth_token", response.data.token);
+            localStorage.setItem("contact", response.data.contact);
             toast.success("Registration successful!");
             setTimeout(() => {
                 router.replace('/');
@@ -132,6 +148,7 @@ export default function AuthPage() {
                 password: loginForm.password
             });
             localStorage.setItem("auth_token", response.data.token);
+            localStorage.setItem("contact", response.data.contact);
             toast.success("Logged in successfully!");
             setTimeout(() => {
                 router.replace('/');
@@ -149,7 +166,6 @@ export default function AuthPage() {
         e.preventDefault();
         setLoading(true);
         try {
-            // Post to your backend's recovery/forgot endpoint
             await axios.post("http://localhost:5500/api/v1/auth/recover", {
                 contact: recoveryContact
             });
@@ -174,8 +190,8 @@ export default function AuthPage() {
                             {showSignup
                                 ? "Create your account"
                                 : showRecovery
-                                    ? "Account recovery"
-                                    : "Login to your account"}
+                                ? "Account recovery"
+                                : "Login to your account"}
                         </div>
                     </div>
                 </div>
@@ -187,7 +203,7 @@ export default function AuthPage() {
                                 Get started with Morph
                             </div>
                             <div className="text-base text-gray-600 mb-2">
-                                Create your Morph account to access a seamless peer-to-peer liquidity platform.
+                                Create your Morph account to access our liquidity platform.
                             </div>
                             <div className="text-xs text-gray-400">
                                 Signing up is free. Your financial privacy is a priority.
@@ -211,7 +227,7 @@ export default function AuthPage() {
                                 Welcome back to Morph
                             </div>
                             <div className="text-base text-gray-600 mb-2">
-                                Sign in to your Morph account to access your wallet and liquidity provider dashboard.
+                                Sign in to access your wallet and provider dashboard.
                             </div>
                             <div className="text-xs text-gray-400">
                                 Trouble logging in? Contact support or recover your credentials.
@@ -222,7 +238,8 @@ export default function AuthPage() {
                 {/* Recovery form */}
                 {showRecovery ? (
                     <form onSubmit={handleRecovery}>
-                        <div className="mb-6">
+                        <div className="relative mb-6">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Mail size={18} /></span>
                             <Input
                                 name="recoveryContact"
                                 type="text"
@@ -268,7 +285,8 @@ export default function AuthPage() {
                 ) : !showSignup ? (
                     <>
                         <form onSubmit={handleLogin}>
-                            <div className="mb-4">
+                            <div className="relative mb-4">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Mail size={18} /></span>
                                 <Input
                                     name="contact"
                                     type="text"
@@ -280,17 +298,26 @@ export default function AuthPage() {
                                     disabled={loading}
                                 />
                             </div>
-                            <div className="mb-2">
+                            <div className="relative mb-2">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Lock size={18} /></span>
                                 <Input
                                     name="password"
-                                    type="password"
+                                    type={loginPasswordVisible ? "text" : "password"}
                                     placeholder="Password"
                                     value={loginForm.password}
                                     onChange={handleLoginChange}
-                                    className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
+                                    className="pl-11 pr-11 py-8 rounded-full bg-white border border-gray-200 text-base"
                                     required
                                     disabled={loading}
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setLoginPasswordVisible(v => !v)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                                    tabIndex={-1}
+                                >
+                                    {loginPasswordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
                             </div>
                             <div className="mb-4">
                                 <button
@@ -419,14 +446,22 @@ export default function AuthPage() {
                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Lock size={18} /></span>
                                     <Input
                                         name="password"
-                                        type="password"
+                                        type={signupPasswordVisible ? "text" : "password"}
                                         placeholder="Password"
                                         value={signupForm.password}
                                         onChange={handleSignupChange}
-                                        className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
+                                        className="pl-11 pr-11 py-8 rounded-full bg-white border border-gray-200 text-base"
                                         required
                                         disabled={loading}
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setSignupPasswordVisible(v => !v)}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                                        tabIndex={-1}
+                                    >
+                                        {signupPasswordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                                    </button>
                                 </div>
                             </div>
                             <Button
