@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -8,14 +9,18 @@ import { Mail, User, Lock, Phone, Globe, ArrowRight } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 const COUNTRY_LIST = [
-    { label: "Kenya", code: "KE", dial: "+254" },
-    { label: "Uganda", code: "UG", dial: "+256" },
-    { label: "Tanzania", code: "TZ", dial: "+255" },
-    { label: "Nigeria", code: "NG", dial: "+234" },
+    { label: "Kenya", code: "KE", dial: "+254", regex: /^0\d{9}$/ },
+    // Add others if desired
 ];
 
-export default function Signup() {
-    const [form, setForm] = useState({
+export default function AuthPage() {
+    const router = useRouter();
+    const [showSignup, setShowSignup] = useState(false);
+    const [countryPrefix, setCountryPrefix] = useState("");
+    const [loading, setLoading] = useState(false);
+
+    // Shared state for signup
+    const [signupForm, setSignupForm] = useState({
         phone: "",
         email: "",
         password: "",
@@ -24,42 +29,80 @@ export default function Signup() {
         country: "",
         isAgent: false,
     });
-    const [countryPrefix, setCountryPrefix] = useState("");
-    const [loading, setLoading] = useState(false);
 
-    const handleChange = (e) => {
-        setForm({ ...form, [e.target.name]: e.target.value });
+    const [loginForm, setLoginForm] = useState({
+        contact: "",
+        password: "",
+    });
+
+    const [defaultCountry, setDefaultCountry] = useState(COUNTRY_LIST[0]);
+
+    useEffect(() => {
+        async function getDefaultCountry() {
+            try {
+                const res = await fetch('https://ipapi.co/json/');
+                const data = await res.json();
+                const found = COUNTRY_LIST.find(item => item.code === data.country_code);
+                if (found) setDefaultCountry(found);
+            } catch { }
+        }
+        getDefaultCountry();
+    }, []);
+
+    useEffect(() => {
+        if (showSignup) {
+            async function getCountry() {
+                try {
+                    const res = await fetch('https://ipapi.co/json/');
+                    const data = await res.json();
+                    const found = COUNTRY_LIST.find(item => item.code === data.country_code);
+                    if (found) {
+                        setSignupForm(f => ({
+                            ...f,
+                            country: found.code,
+                        }));
+                        setCountryPrefix(found.dial);
+                    }
+                } catch (err) { }
+            }
+            getCountry();
+        }
+    }, [showSignup]);
+
+    // Signup handlers
+    const handleSignupChange = (e) => {
+        setSignupForm({ ...signupForm, [e.target.name]: e.target.value });
     };
-
-    const handleCountryChange = (e) => {
+    const handleSignupCountryChange = (e) => {
         const selected = COUNTRY_LIST.find(c => c.code === e.target.value);
-        setForm({ ...form, country: e.target.value, phone: "" });
+        setSignupForm({ ...signupForm, country: e.target.value, phone: "" });
         setCountryPrefix(selected ? selected.dial : "");
     };
-
-    const handlePhoneChange = (e) => {
+    const handleSignupPhoneChange = (e) => {
         let val = e.target.value.replace(/^0+/, "");
-        setForm({ ...form, phone: val });
+        setSignupForm({ ...signupForm, phone: val });
     };
 
-    const handleSubmit = async (e) => {
+    const handleSignup = async (e) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const msisdn =
-                countryPrefix && form.phone
-                    ? `${countryPrefix}${form.phone.replace(/^0+/, "")}`
-                    : "";
-            await axios.post("http://localhost:5500/api/v1/auth/register", {
+            const msisdn = countryPrefix && signupForm.phone ?
+                `${countryPrefix}${signupForm.phone.replace(/^0+/, "")}` : "";
+            const response = await axios.post("http://localhost:5500/api/v1/auth/register", {
                 phone: msisdn,
-                email: form.email,
-                password: form.password,
-                fname: form.fname,
-                lname: form.lname,
-                country: form.country,
+                email: signupForm.email,
+                password: signupForm.password,
+                fname: signupForm.fname,
+                lname: signupForm.lname,
+                country: signupForm.country,
                 isAgent: false
             });
+            localStorage.setItem("auth_token", response.data.token);
             toast.success("Registration successful!");
+            setTimeout(() => {
+                router.replace('/');
+            }, 1200);
         } catch (err) {
             if (axios.isAxiosError(err) && err.response?.status === 409) {
                 toast.error("A user with this phone or email already exists.");
@@ -71,6 +114,33 @@ export default function Signup() {
         }
     };
 
+    const handleLoginChange = (e) => {
+        let { name, value } = e.target;
+        if (name === "contact" && value.startsWith("0") && defaultCountry.regex.test(value)) {
+            value = defaultCountry.dial + value.slice(1);
+        }
+        setLoginForm({ ...loginForm, [name]: value });
+    };
+
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const response = await axios.post("http://localhost:5500/api/v1/auth/login", {
+                contact: loginForm.contact,
+                password: loginForm.password
+            });
+            localStorage.setItem("auth_token", response.data.token);
+            toast.success("Logged in successfully!");
+            setTimeout(() => {
+                router.replace('/');
+            }, 1200);
+        } catch (err) {
+            toast.error(err.response?.data?.error || "Login failed.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="min-h-screen flex items-center justify-center font-inter bg-[#f9f8f9]">
@@ -79,111 +149,162 @@ export default function Signup() {
                 <div className="flex items-center mb-8">
                     <div className="bg-black text-white rounded-xl w-12 h-12 flex items-center justify-center text-xl font-bold mr-4">N9</div>
                     <div>
-                        <div className="text-lg font-semibold mb-1">Financial Dashboard</div>
-                        <div className="text-gray-400 text-sm">Create your account</div>
+                        <div className="text-lg font-semibold mb-1">Morph</div>
+                        <div className="text-gray-400 text-sm">
+                            {showSignup ? "Create your account" : "Login to your account"}
+                        </div>
                     </div>
                 </div>
-                <form onSubmit={handleSubmit}>
-                    <div className="flex gap-4 mb-4">
-                        <div className="relative w-1/2">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><User size={18} /></span>
-                            <Input
-                                name="fname"
-                                type="text"
-                                placeholder="First Name"
-                                value={form.fname}
-                                onChange={handleChange}
-                                className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
-                                required
-                            />
-                        </div>
-                        <div className="relative w-1/2">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><User size={18} /></span>
-                            <Input
-                                name="lname"
-                                type="text"
-                                placeholder="Last Name"
-                                value={form.lname}
-                                onChange={handleChange}
-                                className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
-                                required
-                            />
-                        </div>
-                    </div>
-                    <div className="flex gap-4 mb-4">
-                        <div className="relative w-1/2">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"><Globe size={18} /></span>
-                            <select
-                                name="country"
-                                value={form.country}
-                                onChange={handleCountryChange}
-                                className="pl-11 pr-4 py-5 rounded-full bg-white border border-gray-200 text-base focus:outline-none w-full appearance-none"
-                                required
-                            >
-                                <option value="" disabled>Select Country</option>
-                                {COUNTRY_LIST.map(({ label, code }) => (
-                                    <option key={code} value={code}>
-                                        {label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="relative w-1/2">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Phone size={18} /></span>
-                            <div className="flex">
-                                {/* Static country prefix; input for rest of number */}
-                                <span className="flex items-center pl-11 bg-white border border-gray-200 rounded-l-full py-5 pr-2 text-base text-gray-600">
-                                    {countryPrefix}
-                                </span>
-                                <input
-                                    name="phone"
-                                    type="tel"
-                                    placeholder="712345678"
-                                    value={form.phone}
-                                    onChange={handlePhoneChange}
-                                    className="flex-1 rounded-r-full bg-white border-t border-b border-r border-gray-200 py-5 pl-3 pr-4 text-base focus:outline-none"
-                                    pattern="[0-9]{6,15}"
+                {!showSignup ? (
+                    <>
+                        <form onSubmit={handleLogin}>
+                            <div className="mb-4">
+                                <Input
+                                    name="contact"
+                                    type="text"
+                                    placeholder="Phone (with +254) or Email"
+                                    value={loginForm.contact}
+                                    onChange={handleLoginChange}
+                                    className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
                                     required
-                                    disabled={!countryPrefix}
                                 />
                             </div>
+                            <div className="mb-4">
+                                <Input
+                                    name="password"
+                                    type="password"
+                                    placeholder="Password"
+                                    value={loginForm.password}
+                                    onChange={handleLoginChange}
+                                    className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
+                                    required
+                                />
+                            </div>
+                            <Button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full cursor-pointer rounded-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-8 px-8 flex items-center justify-center transition"
+                            >
+                                {loading ? "Logging In..." : "Login"}
+                            </Button>
+                        </form>
+                        <div className="text-center mt-6">
+                            <span>Don't have an account? </span>
+                            <button className="text-orange-600 font-bold" onClick={() => setShowSignup(true)}>
+                                Sign up
+                            </button>
                         </div>
-                    </div>
-                    <div className="flex gap-4 mb-4">
-                        <div className="relative w-1/2">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Mail size={18} /></span>
-                            <Input
-                                name="email"
-                                type="email"
-                                placeholder="Email"
-                                value={form.email}
-                                onChange={handleChange}
-                                className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
-                                required
-                            />
+                    </>
+                ) : (
+                    <>
+                        <form onSubmit={handleSignup}>
+                            <div className="flex gap-4 mb-4">
+                                <div className="relative w-1/2">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><User size={18} /></span>
+                                    <Input
+                                        name="fname"
+                                        type="text"
+                                        placeholder="First Name"
+                                        value={signupForm.fname}
+                                        onChange={handleSignupChange}
+                                        className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
+                                        required
+                                    />
+                                </div>
+                                <div className="relative w-1/2">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><User size={18} /></span>
+                                    <Input
+                                        name="lname"
+                                        type="text"
+                                        placeholder="Last Name"
+                                        value={signupForm.lname}
+                                        onChange={handleSignupChange}
+                                        className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-4 mb-4">
+                                <div className="relative w-1/2">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"><Globe size={18} /></span>
+                                    <select
+                                        name="country"
+                                        value={signupForm.country}
+                                        onChange={handleSignupCountryChange}
+                                        className="pl-11 pr-4 py-5 rounded-full bg-white border border-gray-200 text-base focus:outline-none w-full appearance-none"
+                                        required
+                                    >
+                                        <option value="" disabled>Select Country</option>
+                                        {COUNTRY_LIST.map(({ label, code }) => (
+                                            <option key={code} value={code}>
+                                                {label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="relative w-1/2">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Phone size={18} /></span>
+                                    <div className="flex">
+                                        <span className="flex items-center pl-11 bg-white border border-gray-200 rounded-l-full py-5 pr-2 text-base text-gray-600">
+                                            {countryPrefix}
+                                        </span>
+                                        <input
+                                            name="phone"
+                                            type="tel"
+                                            placeholder="712345678"
+                                            value={signupForm.phone}
+                                            onChange={handleSignupPhoneChange}
+                                            className="flex-1 rounded-r-full bg-white border-t border-b border-r border-gray-200 py-5 pl-3 pr-4 text-base focus:outline-none"
+                                            pattern="[0-9]{6,15}"
+                                            required
+                                            disabled={!countryPrefix}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex gap-4 mb-4">
+                                <div className="relative w-1/2">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Mail size={18} /></span>
+                                    <Input
+                                        name="email"
+                                        type="email"
+                                        placeholder="Email"
+                                        value={signupForm.email}
+                                        onChange={handleSignupChange}
+                                        className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
+                                        required
+                                    />
+                                </div>
+                                <div className="relative w-1/2">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Lock size={18} /></span>
+                                    <Input
+                                        name="password"
+                                        type="password"
+                                        placeholder="Password"
+                                        value={signupForm.password}
+                                        onChange={handleSignupChange}
+                                        className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <Button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full cursor-pointer rounded-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-8 px-8 flex items-center justify-center transition"
+                            >
+                                <span className="px-6">{loading ? "Signing Up..." : "Sign Up"}</span>
+                                <ArrowRight size={20} className="ml-3" />
+                            </Button>
+                        </form>
+                        <div className="text-center mt-6">
+                            <span>Already have an account? </span>
+                            <button className="text-orange-600 font-bold" onClick={() => setShowSignup(false)}>
+                                Login
+                            </button>
                         </div>
-                        <div className="relative w-1/2">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Lock size={18} /></span>
-                            <Input
-                                name="password"
-                                type="password"
-                                placeholder="Password"
-                                value={form.password}
-                                onChange={handleChange}
-                                className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
-                                required
-                            />
-                        </div>
-                    </div>
-                    <Button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full rounded-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-8 px-8 flex items-center justify-between transition"
-                    >
-                        <span className="px-6">{loading ? "Signing Up..." : "Sign Up"}</span>
-                        <ArrowRight size={20} className="ml-3 mr-6" />
-                    </Button>
-                </form>
+                    </>
+                )}
             </div>
         </div>
     );
