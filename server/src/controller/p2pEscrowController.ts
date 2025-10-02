@@ -13,7 +13,7 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
     const { businessId, stablecoin, amount, businessWallet } = req.body as {
       businessId: string;
       stablecoin: string;
-      amount: string; // expected in contract units!
+      amount: string;
       businessWallet: string;
     };
 
@@ -42,7 +42,7 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
       "function balanceOf(address account) view returns (uint256)",
     ];
     const token = new ethers.Contract(stablecoin, erc20Readable, provider);
-    let decimals = 18; // assume 18 if API fails
+    let decimals = 18;
     try {
       decimals = Number(await token.decimals());
     } catch (err: any) {
@@ -53,7 +53,6 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
     }
     const tokenAmount = BigInt(amount);
 
-    // Agent selection
     const candidateAgents = await usersCol
       .find({ status: "active" })
       .limit(50)
@@ -83,9 +82,8 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
     ]);
     let txHash: string;
     try {
-      // Use correct CAIP2 and chain_id for your network!
-      const caip2 = "eip155:534351"; // Scroll Mainnet, use "eip155:534354" for Scroll Sepolia!
-      const chainId = 534351; // or 534354 for testnet
+      const caip2 = "eip155:534351";
+      const chainId = 534351;
 
       const privyTx = await privy.wallets().ethereum().sendTransaction(
         selectedPeer.privyWalletId,
@@ -108,9 +106,10 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
     }
 
     // Write order
-    const randomSalt = ethers.hexlify(ethers.randomBytes(8));
-    const orderId = ethers.id(`${businessId}:${Date.now()}:${randomSalt}`);
+
     const now = new Date();
+    const randomNum = Math.floor(Math.random() * 1000000); 
+    const orderId = `odr-${Date.now()}${ethers.hexlify(ethers.randomBytes(4)).slice(2)}`;
     const doc = {
       type: "deposit",
       status: "matched",
@@ -206,9 +205,9 @@ export async function sellStablecoin(req: Request, res: Response): Promise<void>
       return;
     }
 
-    const randomSalt = ethers.hexlify(ethers.randomBytes(8));
-    const orderId = ethers.id(`${businessId}:${Date.now()}:${randomSalt}:sell`);
     const now = new Date();
+    const randomNum = Math.floor(Math.random() * 1000000); 
+    const orderId = `odr-${Date.now()}${ethers.hexlify(ethers.randomBytes(4)).slice(2)}`;
     const doc = {
       type: "withdrawal",
       status: "matched",
@@ -269,7 +268,7 @@ export async function depositConfirm(req: Request, res: Response): Promise<void>
 
     const db = await connectDB();
     const orders = db.collection('orders');
-    
+
     const updated = await orders.findOneAndUpdate(
       { orderId },
       { $set: { status: 'fulfilled', updatedAt: new Date() } },
@@ -284,7 +283,7 @@ export async function depositConfirm(req: Request, res: Response): Promise<void>
       message: 'Deposit confirmed. Order fulfilled.',
       order: updated
     });
-    
+
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }

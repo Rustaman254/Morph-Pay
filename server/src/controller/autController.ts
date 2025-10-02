@@ -1,9 +1,9 @@
 import type { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { PrivyClient } from '@privy-io/node';
 import { connectDB } from '../config/db';
 
-// Validation functions
 function isEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -11,13 +11,13 @@ function isPhone(phone: string): boolean {
     return /^\+[1-9]\d{9,14}$/.test(phone);
 }
 
-// Privy SDK initialization
 const privy = new PrivyClient({
     appId: process.env.PRIVY_APP_ID!,
     appSecret: process.env.PRIVY_APP_SECRET!
 });
 
-// Registration Controller with privyWalletId added
+const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_fallback_secret";
+
 export const register = async (req: Request, res: Response) => {
     try {
         const {
@@ -73,10 +73,7 @@ export const register = async (req: Request, res: Response) => {
             }
         }
 
-        // Hash password
         const passwordHash = await bcrypt.hash(password, 12);
-
-        // Create wallet via Privy for user
         const userWalletData = await privy.wallets().create({ chain_type: 'ethereum' });
         const did = `did:ethr:${userWalletData.address}`;
 
@@ -99,14 +96,80 @@ export const register = async (req: Request, res: Response) => {
 
         await users.insertOne(userDoc);
 
+        const jwtPayload = {
+            userId: userDoc.contact,
+            did: userDoc.did,
+            fname: userDoc.fname,
+            lname: userDoc.lname,
+            isAgent: userDoc.isAgent,
+            businessId, 
+        };
+        
+        const token = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: "7d" });
+
         res.json({
+            token,
             did,
             address: userWalletData.address,
             publicKey: userWalletData.publicKey,
-            privyWalletId: userWalletData.id, // Return Privy wallet ID for reference
+            privyWalletId: userWalletData.id,
             contact,
             isAgent: userDoc.isAgent,
             businessId
+        });
+    } catch (err) {
+        res.status(500).json({
+            message: (err as Error).message
+        });
+    }
+};
+
+
+export const login = async (req: Request, res: Response) => {
+    try {
+        const { contact, password } = req.body;
+
+        if (!contact || !(isPhone(contact) || isEmail(contact))) {
+            return res.status(400).json({ error: "Invalid phone number or email." });
+        }
+        if (!password) {
+            return res.status(400).json({ error: "Password required." });
+        }
+
+        const db = await connectDB();
+        const users = db.collection('users');
+
+        const user = await users.findOne({ contact });
+
+        if (!user) {
+            return res.status(401).json({ error: "Invalid credentials." });
+        }
+
+        const match = await bcrypt.compare(password, user.passwordHash);
+        if (!match) {
+            return res.status(401).json({ error: "Invalid credentials." });
+        }
+
+        const jwtPayload = {
+            userId: user.contact,
+            did: user.did,
+            fname: user.fname,
+            lname: user.lname,
+            isAgent: user.isAgent,
+            businessId: user.businessId,
+        };
+
+        const token = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: "7d" });
+        
+        res.json({
+            token,
+            did: user.did,
+            address: user.address,
+            publicKey: user.publicKey,
+            privyWalletId: user.privyWalletId,
+            contact: user.contact,
+            isAgent: user.isAgent,
+            businessId: user.businessId,
         });
     } catch (err) {
         res.status(500).json({
