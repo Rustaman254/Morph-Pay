@@ -46,7 +46,6 @@ export const register = async (req: Request, res: Response) => {
 
         let businessId: string | undefined = undefined;
 
-        // Create wallet via Privy for business if needed
         let bizWalletData;
         if (businessName && legalEntityType && businessEmail) {
             const existBiz = await businesses.findOne({ contactEmail: businessEmail });
@@ -61,7 +60,7 @@ export const register = async (req: Request, res: Response) => {
                     contactEmail: businessEmail,
                     address: bizWalletData.address,
                     publicKey: bizWalletData.publicKey,
-                    privyWalletId: bizWalletData.id, // Store Privy wallet ID
+                    privyWalletId: bizWalletData.id, 
                     website,
                     isApproved: false,
                     kycStatus: 'pending',
@@ -86,7 +85,7 @@ export const register = async (req: Request, res: Response) => {
             did,
             address: userWalletData.address,
             publicKey: userWalletData.publicKey,
-            privyWalletId: userWalletData.id, // Store Privy wallet ID
+            privyWalletId: userWalletData.id, 
             isAgent: isAgent || false,
             businessId,
             status: 'active',
@@ -170,6 +169,83 @@ export const login = async (req: Request, res: Response) => {
             contact: user.contact,
             isAgent: user.isAgent,
             businessId: user.businessId,
+        });
+    } catch (err) {
+        res.status(500).json({
+            message: (err as Error).message
+        });
+    }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { contact, token, password } = req.body;
+        if (!contact || !token || !password || password.length < 8) {
+            return res.status(400).json({ error: "All fields required and password must be at least 8 characters." });
+        }
+        const db = await connectDB();
+        const recoveries = db.collection('password_resets');
+        const users = db.collection('users');
+
+        const recovery = await recoveries.findOne({
+            contact,
+            used: false,
+            expires: { $gt: new Date() }
+        });
+        if (!recovery) {
+            return res.status(400).json({ error: "Invalid or expired recovery token." });
+        }
+
+        const tokenValid = await bcrypt.compare(token, recovery.tokenHash);
+        if (!tokenValid) {
+            return res.status(400).json({ error: "Invalid or expired recovery token." });
+        }
+
+        const passwordHash = await bcrypt.hash(password, 12);
+        await users.updateOne({ contact }, { $set: { passwordHash } });
+
+        await recoveries.updateOne(
+            { _id: recovery._id },
+            { $set: { used: true } }
+        );
+
+        return res.json({ message: "Password reset successful." });
+    } catch (err) {
+        res.status(500).json({ message: (err as Error).message });
+    }
+};
+
+export const recover = async (req: Request, res: Response) => {
+    try {
+        const { contact } = req.body;
+        if (!contact || !(isPhone(contact) || isEmail(contact))) {
+            return res.status(400).json({ error: "Invalid phone number or email." });
+        }
+
+        const db = await connectDB();
+        const users = db.collection('users');
+
+        const user = await users.findOne({ contact });
+        if (!user) {
+            return res.status(200).json({ message: "If an account exists, recovery instructions have been sent." });
+        }
+
+        const token = jwt.sign(
+            {
+                contact,
+                type: "password-reset"
+            },
+            JWT_SECRET,
+            { expiresIn: "30m" }
+        );
+
+        console.log("account reset requested");
+
+        // TODO: Send token by email/SMS as reset url, ex:
+        // `http://localhost:5500/api/v1/auth/reset-password?token=${token}`
+
+        return res.status(200).json({
+            message: "If an account exists, recovery instructions have been sent."
         });
     } catch (err) {
         res.status(500).json({

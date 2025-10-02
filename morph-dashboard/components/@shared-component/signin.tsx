@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Mail, User, Lock, Phone, Globe, ArrowRight } from "lucide-react";
+import { Mail, User, Lock, Phone, Globe, ArrowRight, RefreshCcw } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 const COUNTRY_LIST = [
@@ -16,6 +16,7 @@ const COUNTRY_LIST = [
 export default function AuthPage() {
     const router = useRouter();
     const [showSignup, setShowSignup] = useState(false);
+    const [showRecovery, setShowRecovery] = useState(false);
     const [countryPrefix, setCountryPrefix] = useState("");
     const [loading, setLoading] = useState(false);
 
@@ -29,12 +30,11 @@ export default function AuthPage() {
         country: "",
         isAgent: false,
     });
-
     const [loginForm, setLoginForm] = useState({
         contact: "",
         password: "",
     });
-
+    const [recoveryContact, setRecoveryContact] = useState("");
     const [defaultCountry, setDefaultCountry] = useState(COUNTRY_LIST[0]);
 
     useEffect(() => {
@@ -87,8 +87,8 @@ export default function AuthPage() {
         e.preventDefault();
         setLoading(true);
         try {
-            const msisdn = countryPrefix && signupForm.phone ?
-                `${countryPrefix}${signupForm.phone.replace(/^0+/, "")}` : "";
+            const msisdn = countryPrefix && signupForm.phone
+                ? `${countryPrefix}${signupForm.phone.replace(/^0+/, "")}` : "";
             const response = await axios.post("http://localhost:5500/api/v1/auth/register", {
                 phone: msisdn,
                 email: signupForm.email,
@@ -144,6 +144,24 @@ export default function AuthPage() {
         }
     };
 
+    // --- ACCOUNT RECOVERY ---
+    const handleRecovery = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            // Post to your backend's recovery/forgot endpoint
+            await axios.post("http://localhost:5500/api/v1/auth/recover", {
+                contact: recoveryContact
+            });
+            toast.success("Recovery instructions sent!");
+            setShowRecovery(false);
+        } catch (err) {
+            toast.error(err.response?.data?.error || "Recovery failed.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen flex items-center justify-center font-inter bg-[#f9f8f9]">
             <Toaster richColors position="top-right" />
@@ -153,11 +171,101 @@ export default function AuthPage() {
                     <div>
                         <div className="text-lg font-semibold mb-1">Morph</div>
                         <div className="text-gray-400 text-sm">
-                            {showSignup ? "Create your account" : "Login to your account"}
+                            {showSignup
+                                ? "Create your account"
+                                : showRecovery
+                                    ? "Account recovery"
+                                    : "Login to your account"}
                         </div>
                     </div>
                 </div>
-                {!showSignup ? (
+                {/* Titles and info */}
+                <div className="mb-8 text-center">
+                    {showSignup ? (
+                        <>
+                            <div className="text-2xl font-bold text-gray-900 mb-1">
+                                Get started with Morph
+                            </div>
+                            <div className="text-base text-gray-600 mb-2">
+                                Create your Morph account to access a seamless peer-to-peer liquidity platform.
+                            </div>
+                            <div className="text-xs text-gray-400">
+                                Signing up is free. Your financial privacy is a priority.
+                            </div>
+                        </>
+                    ) : showRecovery ? (
+                        <>
+                            <div className="text-2xl font-bold text-gray-900 mb-1">
+                                Account recovery
+                            </div>
+                            <div className="text-base text-gray-600 mb-2">
+                                Enter your email or phone number for password reset instructions.
+                            </div>
+                            <div className="text-xs text-gray-400">
+                                Lost access? Our recovery is secure and private.
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="text-2xl font-bold text-gray-900 mb-1">
+                                Welcome back to Morph
+                            </div>
+                            <div className="text-base text-gray-600 mb-2">
+                                Sign in to your Morph account to access your wallet and liquidity provider dashboard.
+                            </div>
+                            <div className="text-xs text-gray-400">
+                                Trouble logging in? Contact support or recover your credentials.
+                            </div>
+                        </>
+                    )}
+                </div>
+                {/* Recovery form */}
+                {showRecovery ? (
+                    <form onSubmit={handleRecovery}>
+                        <div className="mb-6">
+                            <Input
+                                name="recoveryContact"
+                                type="text"
+                                placeholder="Phone (with +254) or Email"
+                                value={recoveryContact}
+                                onChange={e => setRecoveryContact(e.target.value)}
+                                className="pl-11 pr-4 py-8 rounded-full bg-white border border-gray-200 text-base"
+                                required
+                                disabled={loading}
+                            />
+                        </div>
+                        <Button
+                            type="submit"
+                            disabled={loading}
+                            className={`w-full cursor-pointer rounded-full bg-orange-600 hover:bg-orange-700 text-white py-8 px-8 flex items-center justify-center transition ${loading ? "opacity-75 cursor-not-allowed" : ""}`}
+                        >
+                            {loading ? (
+                                <>
+                                    <span className="px-6">Sending...</span>
+                                    <svg className="animate-spin ml-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8h8a8 8 0 01-8 8V12H4z"></path>
+                                    </svg>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="px-6">Recover Account</span>
+                                    <RefreshCcw size={20} className="ml-3" />
+                                </>
+                            )}
+                        </Button>
+                        <div className="text-center mt-6">
+                            <button
+                                className="text-gray-500 text-sm underline"
+                                disabled={loading}
+                                type="button"
+                                onClick={() => setShowRecovery(false)}
+                            >
+                                Back to login
+                            </button>
+                        </div>
+                    </form>
+                ) : !showSignup ? (
                     <>
                         <form onSubmit={handleLogin}>
                             <div className="mb-4">
@@ -172,7 +280,7 @@ export default function AuthPage() {
                                     disabled={loading}
                                 />
                             </div>
-                            <div className="mb-4">
+                            <div className="mb-2">
                                 <Input
                                     name="password"
                                     type="password"
@@ -183,6 +291,17 @@ export default function AuthPage() {
                                     required
                                     disabled={loading}
                                 />
+                            </div>
+                            <div className="mb-4">
+                                <button
+                                    type="button"
+                                    className="text-orange-600 text-xs font-normal hover:underline focus:outline-none transition-colors"
+                                    style={{ fontWeight: 400 }}
+                                    disabled={loading}
+                                    onClick={() => setShowRecovery(true)}
+                                >
+                                    Forgot password?
+                                </button>
                             </div>
                             <Button
                                 type="submit"
@@ -203,9 +322,12 @@ export default function AuthPage() {
                             </Button>
                         </form>
                         <div className="text-center mt-6">
-                            <span>Don't have an account? </span>
-                            <button className="text-orange-600 font-bold" disabled={loading} onClick={() => setShowSignup(true)}>
-                                Sign up
+                            <button
+                                className="text-orange-600 font-bold"
+                                disabled={loading}
+                                onClick={() => setShowSignup(true)}
+                            >
+                                Don't have an account? Sign up
                             </button>
                         </div>
                     </>
@@ -329,9 +451,8 @@ export default function AuthPage() {
                             </Button>
                         </form>
                         <div className="text-center mt-6">
-                            <span>Already have an account? </span>
                             <button className="text-orange-600 font-bold" disabled={loading} onClick={() => setShowSignup(false)}>
-                                Login
+                                Already have an account? Login
                             </button>
                         </div>
                     </>
