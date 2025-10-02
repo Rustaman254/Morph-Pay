@@ -23,7 +23,6 @@ export default function AuthPage() {
     // Reveal state for password inputs
     const [loginPasswordVisible, setLoginPasswordVisible] = useState(false);
     const [signupPasswordVisible, setSignupPasswordVisible] = useState(false);
-    const [resetPasswordVisible, setResetPasswordVisible] = useState(false);
 
     // Shared state for signup
     const [signupForm, setSignupForm] = useState({
@@ -59,7 +58,7 @@ export default function AuthPage() {
                 const data = await res.json();
                 const found = COUNTRY_LIST.find(item => item.code === data.country_code);
                 if (found) setDefaultCountry(found);
-            } catch { }
+            } catch {}
         }
         getDefaultCountry();
     }, []);
@@ -78,7 +77,7 @@ export default function AuthPage() {
                         }));
                         setCountryPrefix(found.dial);
                     }
-                } catch (err) { }
+                } catch {}
             }
             getCountry();
         }
@@ -94,7 +93,7 @@ export default function AuthPage() {
         setCountryPrefix(selected ? selected.dial : "");
     };
     const handleSignupPhoneChange = (e) => {
-        let val = e.target.value.replace(/^0+/, "");
+        const val = e.target.value.replace(/^0+/, "");
         setSignupForm({ ...signupForm, phone: val });
     };
 
@@ -132,7 +131,8 @@ export default function AuthPage() {
     };
 
     const handleLoginChange = (e) => {
-        let { name, value } = e.target;
+        const { name, value: origValue } = e.target;
+        let value = origValue;
         if (name === "contact" && value.startsWith("0") && defaultCountry.regex.test(value)) {
             value = defaultCountry.dial + value.slice(1);
         }
@@ -190,8 +190,8 @@ export default function AuthPage() {
                             {showSignup
                                 ? "Create your account"
                                 : showRecovery
-                                ? "Account recovery"
-                                : "Login to your account"}
+                                    ? "Account recovery"
+                                    : "Login to your account"}
                         </div>
                     </div>
                 </div>
@@ -203,7 +203,7 @@ export default function AuthPage() {
                                 Get started with Morph
                             </div>
                             <div className="text-base text-gray-600 mb-2">
-                                Create your Morph account to access our liquidity platform.
+                                Create your Morph account to access a seamless peer-to-peer liquidity platform.
                             </div>
                             <div className="text-xs text-gray-400">
                                 Signing up is free. Your financial privacy is a priority.
@@ -227,7 +227,7 @@ export default function AuthPage() {
                                 Welcome back to Morph
                             </div>
                             <div className="text-base text-gray-600 mb-2">
-                                Sign in to access your wallet and provider dashboard.
+                                Sign in to your Morph account to access your wallet and liquidity provider dashboard.
                             </div>
                             <div className="text-xs text-gray-400">
                                 Trouble logging in? Contact support or recover your credentials.
@@ -354,7 +354,7 @@ export default function AuthPage() {
                                 disabled={loading}
                                 onClick={() => setShowSignup(true)}
                             >
-                                Don't have an account? Sign up
+                                Don&apos;t have an account? Sign up
                             </button>
                         </div>
                     </>
