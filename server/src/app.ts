@@ -1,8 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-import authRoutes from './routes/authRouter';
-import p2pEscrow from './routes/p2pEscrowRoutes';
-import userManagementRoutes from './routes/userManagementRoutes';
+import authRoutes from './routes/authRouter.js';
+import p2pEscrow from './routes/p2pEscrowRoutes.js';
+import userManagementRoutes from './routes/userManagementRoutes.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
