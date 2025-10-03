@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { ethers } from "ethers";
 import { PrivyClient } from "@privy-io/node";
-import { connectDB } from "../config/db";
+import { connectDB } from "../config/db.js";
 
 const privy = new PrivyClient({
   appId: process.env.PRIVY_API_KEY!,

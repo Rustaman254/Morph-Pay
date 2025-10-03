@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import { PrivyClient } from '@privy-io/node';
-import { connectDB } from '../config/db';
+import { connectDB } from '../config/db.js';
 
 function isEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);

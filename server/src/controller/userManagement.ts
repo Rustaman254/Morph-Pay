@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { connectDB } from '../config/db';
+import { connectDB } from '../config/db.js';
 
 export const listUsers = async (req: Request, res: Response) => {
     try {
