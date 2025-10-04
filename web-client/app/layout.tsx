@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
-import { StarknetProvider } from "@/components/Starknet-provider";
 
 // const geistSans = Geist({
 //   variable: "--font-geist-sans",
@@ -37,9 +36,7 @@ export default function RootLayout({
       <body
         className={`${outfit.variable} antialiased`}
       >
-        <StarknetProvider>
           {children}
-        </StarknetProvider>
       </body>
     </html>
   );

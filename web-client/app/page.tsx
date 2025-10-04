@@ -1,5 +1,5 @@
 import DashboardOne from "@/components/layouts/dashboard-one";
-import { ArrowDownLeft, ArrowUpRight, LifeBuoy, Headset} from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, LifeBuoy, Headset, Banknote} from "lucide-react";
 import Transactions from "@/components/shared-components/Transactions";
 
 // Example: replace with actual user currency lookup/data
@@ -26,7 +26,13 @@ export default function Home() {
           = {USER_CURRENCY.label} {localValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
         </span>
         <div className="flex items-center justify-center gap-14">
-          {/* Withdraw */}
+          <a
+            href="/send"
+            className="flex flex-col items-center group hover:text-[#96a954] transition"
+          >
+            <Banknote className="w-10 h-10 text-[#96a954] mb-2 group-hover:scale-110 transition" />
+            <span className="text-base text-white font-semibold group-hover:text-[#96a954]">Buy/sell</span>
+          </a>
           <a
             href="/send"
             className="flex flex-col items-center group hover:text-[#96a954] transition"
@@ -34,7 +40,6 @@ export default function Home() {
             <ArrowUpRight className="w-10 h-10 text-[#96a954] mb-2 group-hover:scale-110 transition" />
             <span className="text-base text-white font-semibold group-hover:text-[#96a954]">Send</span>
           </a>
-          {/* Deposit */}
           <a
             href="/deposit"
             className="flex flex-col items-center group hover:text-[#96a954] transition"
