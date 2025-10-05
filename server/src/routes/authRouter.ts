@@ -1,6 +1,6 @@
 // routes/authRoutes.ts
 import express from 'express';
-import { login, recover, register, resetPassword } from '../controller/autController';
+import { login, recover, register, resetPassword } from '../controller/autController.js';
 
 const router: express.Router = express.Router();
 

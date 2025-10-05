@@ -1,37 +1,20 @@
 {
-  // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
-    // File Layout
-    "rootDir": "./src",
-    "outDir": "./dist",
-    // Environment Settings
-    // See also https://aka.ms/tsconfig/module
-    "module": "esnext",
-    "target": "esnext",
-    "moduleResolution": "node",
-    "types": [],
-    // For nodejs:
-    // "lib": ["esnext"],
-    // "types": ["node"],
-    // and npm install -D @types/node
-    // Other Outputs
+    "rootDir": "./src",              // Source code location
+    "outDir": "./dist",              // Compiled output location
+    "module": "esnext",            // Use CommonJS for Node.js, or "esnext" if using ESM
+    "target": "esnext",              // Latest JS features
+    "moduleResolution": "node",      // Module resolution for Node.js
+    "lib": ["esnext"],               // Latest JS library files
+    "types": ["node"],               // Node.js type definitions
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,
-    // Stricter Typechecking Options
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-    // Style Options
-    // "noImplicitReturns": true,
-    // "noImplicitOverride": true,
-    // "noUnusedLocals": true,
-    // "noUnusedParameters": true,
-    // "noFallthroughCasesInSwitch": true,
-    // "noPropertyAccessFromIndexSignature": true,
-    // Recommended Options
     "strict": true,
     "esModuleInterop": true,
-    "jsx": "react-jsx",
+    "jsx": "react-jsx",              // If not using React, you can remove this line
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
@@ -40,7 +23,7 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules"

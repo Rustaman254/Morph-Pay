@@ -6,7 +6,7 @@ import {
   fiatConfirm,
   dispute,
   resolve,
-} from "../controller/p2pEscrowController";
+} from "../controller/p2pEscrowController.js";
 
 const router = express.Router();
 

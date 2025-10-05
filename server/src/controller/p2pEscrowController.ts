@@ -1,10 +1,10 @@
 import type { Request, Response } from "express";
 import { ethers } from "ethers";
 import { PrivyClient } from "@privy-io/node";
-import { connectDB } from "../config/db";
+import { connectDB } from "../config/db.js";
 
 const privy = new PrivyClient({
-  apiKey: process.env.PRIVY_API_KEY!,
+  appId: process.env.PRIVY_API_KEY!,
   appSecret: process.env.PRIVY_APP_SECRET!
 });
 
@@ -44,7 +44,7 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
     const token = new ethers.Contract(stablecoin, erc20Readable, provider);
     let decimals = 18;
     try {
-      decimals = Number(await token.decimals());
+      decimals = Number(await token.decimals?.());
     } catch (err: any) {
       res.status(400).json({
         error: `Failed to read token decimals: ${err?.message || "unknown error"}`,
@@ -61,7 +61,7 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
     let selectedPeer: any = null;
     for (const agent of candidateAgents) {
       try {
-        const bal = await token.balanceOf(agent.address);
+        const bal = await token.balanceOf?.(agent.address);
         if (BigInt(bal) >= tokenAmount) {
           selectedPeer = agent;
           break;
@@ -183,7 +183,7 @@ export async function sellStablecoin(req: Request, res: Response): Promise<void>
 
     let decimals: number;
     try {
-      decimals = Number(await token.decimals());
+      decimals = Number(await token.decimals?.());
     } catch (err: any) {
       res.status(400).json({
         error: `Failed to read token decimals: ${err?.message || "unknown error"}`,

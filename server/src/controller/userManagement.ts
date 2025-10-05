@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { connectDB } from '../config/db';
+import { connectDB } from '../config/db.js';
 
 export const listUsers = async (req: Request, res: Response) => {
     try {
@@ -31,7 +31,7 @@ export const getUser = async (req: Request, res: Response) => {
         if (!user) return res.status(404).json({ error: "User not found" });
         res.json(user);
     } catch (err) {
-        res.status(500).json({ message: (err).message });
+        res.status(500).json({ message: (err as Error).message });
     }
 };
 
