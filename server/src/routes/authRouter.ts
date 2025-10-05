@@ -2,7 +2,7 @@
 import express from 'express';
 import { login, recover, register, resetPassword } from '../controller/autController';
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 router.post('/register', register);
 router.post('/login', login);
