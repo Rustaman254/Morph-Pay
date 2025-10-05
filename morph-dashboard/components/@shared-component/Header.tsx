@@ -9,10 +9,10 @@ import { Input } from "@/components/ui/input";
 import { toast, Toaster } from "sonner";
 
 const menuLinks = [
-    { label: "Overview", key: "overview", href: "/", icon: LayoutDashboard },
-    { label: "Provider Account", key: "provider-account", href: "/provider-account", icon: UserSquare },
+    { label: "Wallet", key: "wallet", href: "/", icon: WalletIcon },
+    // { label: "Overview", key: "overview", href: "/", icon: LayoutDashboard },
     { label: "My Requests", key: "requests", href: "/requests", icon: ListChecks },
-    { label: "Wallet", key: "wallet", href: "/wallet", icon: WalletIcon },
+    { label: "Provider Account", key: "provider-account", href: "/provider-account", icon: UserSquare },
     { label: "Analytics", key: "analytics", href: "/analytics", icon: BarChart2 },
     { label: "Reports", key: "reports", href: "/reports", icon: FileText }
 ];

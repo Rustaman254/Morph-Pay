@@ -13,6 +13,8 @@
     "@starknet-react/chains": "^5.0.3",
     "@starknet-react/core": "^5.0.3",
     "axios": "^1.12.2",
+    "classnames": "^2.5.1",
+    "currency-converter-lt": "^2.0.1",
     "ethers": "^6.15.0",
     "lucide-react": "^0.544.0",
     "next": "15.5.3",

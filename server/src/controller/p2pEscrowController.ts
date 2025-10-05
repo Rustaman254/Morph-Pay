@@ -1,12 +1,137 @@
 import type { Request, Response } from "express";
 import { ethers } from "ethers";
 import { PrivyClient } from "@privy-io/node";
+import { ObjectId } from "mongodb";
+import axios from "axios";
 import { connectDB } from "../config/db.js";
+import { getMpesaTimestamp, getMpesaPassword } from "../utils/mpesaUtils.js";
+import type { RequestExtended } from "../middleware/mpesaAuth.js";
 
 const privy = new PrivyClient({
   appId: process.env.PRIVY_API_KEY!,
   appSecret: process.env.PRIVY_APP_SECRET!
 });
+
+export async function acceptOrderAndStkPush(req: RequestExtended, res: Response): Promise<void> {
+  const { orderId } = req.params;
+  const { peerId } = req.body;
+
+  const db = await connectDB();
+  const orders = db.collection("orders");
+  const usersCol = db.collection("users");
+
+  // Validate order & peer
+  const order = await orders.findOne({ orderId });
+  if (!order) {
+    res.status(404).json({ error: "Order not found" });
+    return;
+  }
+  if (!peerId || !ObjectId.isValid(peerId)) {
+    res.status(400).json({ error: "Invalid or missing peerId" });
+    return;
+  }
+  const peer = await usersCol.findOne({ _id: new ObjectId(peerId) });
+  if (!peer || !peer.contact) {
+    res.status(404).json({ error: "Peer or M-Pesa phone missing" });
+    return;
+  }
+
+  // Update order status
+  await orders.updateOne(
+    { orderId },
+    { $set: { status: "peer_accepted", peerId: new ObjectId(peerId) } }
+  );
+
+  const shortCode = process.env.MPESA_BUSINESS_SHORT_CODE!;
+  const passkey = process.env.MPESA_PASS_KEY!;
+  const timestamp = getMpesaTimestamp();
+  const password = getMpesaPassword(shortCode, passkey, timestamp);
+  const token = req.token;
+  if (!token) {
+    res.status(500).json({ error: "Missing Safaricom OAuth token" });
+    return;
+  }
+
+  const stkRequest = {
+    BusinessShortCode: shortCode,
+    Password: password,
+    Timestamp: timestamp,
+    TransactionType: "CustomerPayBillOnline",
+    Amount: Number(order.amount),
+    PartyA: peer.contact,
+    PartyB: shortCode,
+    PhoneNumber: peer.contact,
+    CallBackURL: `${process.env.SERVER_URL}/mpesa/callback`, 
+    AccountReference: order.orderId?.slice(0, 12),
+    TransactionDesc: "Stablecoin Sale",
+  };
+
+  try {
+    const stkRes = await axios.post(
+      "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+      stkRequest,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    await orders.updateOne(
+      { orderId },
+      { $set: { checkoutRequestID: stkRes.data.CheckoutRequestID } }
+    );
+
+    res.status(200).json({
+      message: "STK push sent to peer",
+      stkRes: stkRes.data,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      error: "STK push failed",
+      details: err.response?.data || err.message,
+    });
+  }
+}
+
+export async function mpesaCallbackHandler(req: Request, res: Response): Promise<void> {
+  console.log("MPESA Callback received:", JSON.stringify(req.body, null, 2));
+
+  const callbackData = req.body;
+  const stkCallback = callbackData?.Body?.stkCallback;
+  const resultCode = stkCallback?.ResultCode;
+  const resultDesc = stkCallback?.ResultDesc;
+  const checkoutRequestID = stkCallback?.CheckoutRequestID;
+
+  let amount, mpesaReceipt;
+  if (stkCallback?.CallbackMetadata?.Item) {
+    for (const entry of stkCallback.CallbackMetadata.Item) {
+      if (entry.Name === "Amount") amount = entry.Value;
+      if (entry.Name === "MpesaReceiptNumber") mpesaReceipt = entry.Value;
+    }
+  }
+
+  const db = await connectDB();
+  const orders = db.collection("orders");
+
+  const updateResult = await orders.findOneAndUpdate(
+    { checkoutRequestID }, // Must match the one saved above!
+    {
+      $set: {
+        paymentStatus: resultCode === 0 ? "completed" : "failed",
+        mpesaReceipt,
+        mpesaResultDesc: resultDesc,
+        mpesaResultCode: resultCode,
+        mpesaAmount: amount,
+        mpesaCallbackReceivedAt: new Date(),
+      },
+    }
+  );
+
+  if (!updateResult?.value) {
+    console.warn(`Order not found for checkoutRequestID: ${checkoutRequestID}`);
+  }
+
+  // Always send 200 OK to stop Safaricom from retrying
+  res.status(200).json({ message: "Callback received" });
+}
+
 
 export async function buyStablecoin(req: Request, res: Response): Promise<void> {
   try {
@@ -108,7 +233,7 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
     // Write order
 
     const now = new Date();
-    const randomNum = Math.floor(Math.random() * 1000000); 
+    const randomNum = Math.floor(Math.random() * 1000000);
     const orderId = `odr-${Date.now()}${ethers.hexlify(ethers.randomBytes(4)).slice(2)}`;
     const doc = {
       type: "deposit",
@@ -206,12 +331,12 @@ export async function sellStablecoin(req: Request, res: Response): Promise<void>
     }
 
     const now = new Date();
-    const randomNum = Math.floor(Math.random() * 1000000); 
+    const randomNum = Math.floor(Math.random() * 1000000);
     const orderId = `odr-${Date.now()}${ethers.hexlify(ethers.randomBytes(4)).slice(2)}`;
     const doc = {
       type: "withdrawal",
       status: "matched",
-      amount: Number(amount), // This is the fiat expected for the sale (not contract units)
+      amount: Number(amount),
       token: stablecoin,
       businessId,
       peerId: selectedPeer?._id?.toString?.(),
@@ -220,14 +345,13 @@ export async function sellStablecoin(req: Request, res: Response): Promise<void>
       updatedAt: now,
       details: "Sell stablecoin order (off-chain settlement, peer payout)",
       orderId,
-      tokenAmount: tokenAmount.toString(), // in contract units
+      tokenAmount: tokenAmount.toString(), 
       peerWallet: selectedPeer.address,
       peerPrivyWalletId: selectedPeer.privyWalletId,
       businessWallet
     };
     const insert = await orders.insertOne(doc as any);
 
-    // Build ERC20 transfer calldata for the seller to transfer tokens to the agent/peer
     const erc20Iface = new ethers.Interface([
       "function transfer(address to, uint256 amount) returns (bool)"
     ]);
@@ -256,7 +380,6 @@ export async function sellStablecoin(req: Request, res: Response): Promise<void>
   }
 }
 
-// to the peers to mark as fulfilled
 export async function depositConfirm(req: Request, res: Response): Promise<void> {
   const { orderId } = req.params;
   try {

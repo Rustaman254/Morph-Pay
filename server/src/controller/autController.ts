@@ -8,7 +8,7 @@ function isEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 function isPhone(phone: string): boolean {
-    return /^\+[1-9]\d{9,14}$/.test(phone); // expects "+254..." not just "254..."
+    return /^\+[1-9]\d{9,14}$/.test(phone); 
 }
 // Normalizes phone by removing the + sign if present
 function normalizePhone(phone: string): string {
@@ -148,7 +148,6 @@ export const login = async (req: Request, res: Response) => {
         if (!contact || (!isPhone(contact) && !isEmail(contact))) {
             return res.status(400).json({ error: "Invalid phone number or email." });
         }
-        // Normalize phone for lookup (if it's a phone)
         if (isPhone(contact)) {
             contact = normalizePhone(contact);
         }
