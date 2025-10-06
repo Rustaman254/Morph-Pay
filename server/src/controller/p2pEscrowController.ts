@@ -51,43 +51,46 @@ export async function acceptOrderAndStkPush(req: RequestExtended, res: Response)
     res.status(500).json({ error: "Missing Safaricom OAuth token" });
     return;
   }
-
-  const stkRequest = {
-    BusinessShortCode: shortCode,
-    Password: password,
-    Timestamp: timestamp,
-    TransactionType: "CustomerPayBillOnline",
-    Amount: Number(order.amount),
-    PartyA: peer.contact,
-    PartyB: shortCode,
-    PhoneNumber: peer.contact,
-    CallBackURL: `${process.env.SERVER_URL}/mpesa/callback`, 
-    AccountReference: order.orderId?.slice(0, 12),
-    TransactionDesc: "Stablecoin Sale",
-  };
-
-  try {
-    const stkRes = await axios.post(
-      "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
-      stkRequest,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    await orders.updateOne(
-      { orderId },
-      { $set: { checkoutRequestID: stkRes.data.CheckoutRequestID } }
-    );
-
-    res.status(200).json({
-      message: "STK push sent to peer",
-      stkRes: stkRes.data,
-    });
-  } catch (err: any) {
-    res.status(500).json({
-      error: "STK push failed",
-      details: err.response?.data || err.message,
-    });
+  if(peer.status == 'active') {
+    const stkRequest = {
+      BusinessShortCode: shortCode,
+      Password: password,
+      Timestamp: timestamp,
+      TransactionType: "CustomerPayBillOnline",
+      Amount: Number(order.amount),
+      PartyA: peer.contact,
+      PartyB: shortCode,
+      PhoneNumber: peer.contact,
+      CallBackURL: `${process.env.SERVER_URL}/mpesa/callback`, 
+      AccountReference: order.orderId?.slice(0, 12),
+      TransactionDesc: "Stablecoin Sale",
+    };
+    try {
+      const stkRes = await axios.post(
+        "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+        stkRequest,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+  
+      await orders.updateOne(
+        { orderId },
+        { $set: { checkoutRequestID: stkRes.data.CheckoutRequestID } }
+      );
+  
+      res.status(200).json({
+        message: "STK push sent to peer",
+        stkRes: stkRes.data,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: "STK push failed",
+        details: err.response?.data || err.message,
+      });
+    }
+  } else {
+    res.status(400).json({ error: "Peer is not active" });
   }
+
 }
 
 export async function mpesaCallbackHandler(req: Request, res: Response): Promise<void> {
