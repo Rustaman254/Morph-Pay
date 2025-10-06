@@ -6,11 +6,23 @@ import axios from "axios";
 import { connectDB } from "../config/db.js";
 import { getMpesaTimestamp, getMpesaPassword } from "../utils/mpesaUtils.js";
 import type { RequestExtended } from "../middleware/mpesaAuth.js";
+import { getUsdcToKesRate } from "../utils/getTokenRate.js";
 
 const privy = new PrivyClient({
   appId: process.env.PRIVY_API_KEY!,
   appSecret: process.env.PRIVY_APP_SECRET!
 });
+
+function customRound(amount: number): number {
+  const [integer, decimalPart = ""] = amount.toString().split(".");
+  const firstDecimalDigit = parseInt(decimalPart.charAt(0) || "0", 10);
+
+  if (firstDecimalDigit > 5) {
+    return Math.ceil(amount);
+  } else {
+    return Number(amount.toFixed(2));
+  }
+}
 
 export async function acceptOrderAndStkPush(req: RequestExtended, res: Response): Promise<void> {
   const { orderId } = req.params;
@@ -35,6 +47,14 @@ export async function acceptOrderAndStkPush(req: RequestExtended, res: Response)
     res.status(404).json({ error: "Peer or M-Pesa phone missing" });
     return;
   }
+
+  const usdcTokenRate = await getUsdcToKesRate("KES", "USDC");
+  const orderAmountInUSDC = order.amount / 1e6;
+  const value = orderAmountInUSDC * usdcTokenRate;
+
+  const amount = customRound(value);
+  console.log(typeof peer.contact)
+  console.log(amount)
 
   // Update order status
   await orders.updateOne(
@@ -181,6 +201,8 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
     }
     const tokenAmount = BigInt(amount);
 
+    console.log(amount, tokenAmount, decimals);
+
     const candidateAgents = await usersCol
       .find({ status: "active" })
       .limit(50)
@@ -190,6 +212,7 @@ export async function buyStablecoin(req: Request, res: Response): Promise<void> 
     for (const agent of candidateAgents) {
       try {
         const bal = await token.balanceOf?.(agent.address);
+        console.log("Agent balance:", bal?.toString?.());
         if (BigInt(bal) >= tokenAmount) {
           selectedPeer = agent;
           break;
