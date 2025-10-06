@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
-import { Text, TextInput, TouchableOpacity, ScrollView, Switch } from "react-native";
+import { Text, TextInput, TouchableOpacity, ScrollView, Switch, Alert, ActivityIndicator } from "react-native";
 import { KeyboardAvoidingView, Platform, StyleSheet, View, Image } from "react-native";
-import COLORS from "../constants/colors";
+import COLORS from "../../constants/colors";
 import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuthStore } from "@/store/authStore";
 
 export default function SignUp() {
     const router = useRouter();
@@ -24,28 +25,75 @@ export default function SignUp() {
     const [registrationNumber, setRegistrationNumber] = useState<string>("");
     const [businessEmail, setBusinessEmail] = useState<string>("");
     const [website, setWebsite] = useState<string>("");
+    const { user, isLoading, register } = useAuthStore();
+
 
     const handleSignUp = async () => {
+        // Validate required fields
+        if (!fname || !lname || !phone || !password || !country) {
+            Alert.alert("Error", "Please fill in all required fields");
+            return;
+        }
+
+        // Validate password length (backend requires 8+ characters)
+        if (password.length < 8) {
+            Alert.alert("Error", "Password must be at least 8 characters long");
+            return;
+        }
+
+        // Validate phone format
+        const phoneWithoutSpaces = phone.replace(/\s/g, '');
+        if (!phoneWithoutSpaces.match(/^\+?[1-9]\d{9,14}$/)) {
+            Alert.alert("Error", "Please enter a valid phone number (e.g., +254712345678)");
+            return;
+        }
+
+        // If agent, validate business fields (all 3 required for business creation)
+        if (isAgent && (!businessName || !legalEntityType || !businessEmail)) {
+            Alert.alert("Error", "Business Name, Legal Entity Type, and Business Email are required for agent registration");
+            return;
+        }
+
         // Prepare data matching backend requirements
-        const signupData = {
-            fname,
-            lname,
-            phone,
-            email,
+        const signupData: any = {
+            fname: fname.trim(),
+            lname: lname.trim(),
+            phone: phoneWithoutSpaces,
+            country: country.trim(),
             password,
-            country,
             isAgent,
-            ...(isAgent && {
-                businessName,
-                legalEntityType,
-                registrationNumber,
-                businessEmail,
-                website
-            })
         };
 
-        // TODO: Make API call to your backend
-        console.log('Signup data:', signupData);
+        // Add email if provided
+        if (email) {
+            signupData.email = email.trim().toLowerCase();
+        }
+
+        // Add business fields if registering as agent
+        if (isAgent) {
+            signupData.businessName = businessName.trim();
+            signupData.legalEntityType = legalEntityType.trim();
+            signupData.businessEmail = businessEmail.trim().toLowerCase();
+
+            if (registrationNumber) {
+                signupData.registrationNumber = registrationNumber.trim();
+            }
+            if (website) {
+                signupData.website = website.trim();
+            }
+        }
+
+        console.log('Submitting signup data:', signupData);
+
+        const result = await register(signupData);
+
+        if (!result.success) {
+            Alert.alert("Registration Failed", result.error || "An error occurred during registration");
+        } else {
+            Alert.alert("Success", "Registration successful!", [
+                { text: "OK", onPress: () => router.replace('/(auth)') }
+            ]);
+        }
     };
 
     return (
@@ -345,9 +393,18 @@ export default function SignUp() {
                         </>
                     )}
 
-                    {/* Sign Up Button */}
-                    <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-                        <Text style={styles.buttonText}>Sign Up</Text>
+
+                    {/* Login Button */}
+                    <TouchableOpacity
+                        onPress={handleSignUp}
+                        style={styles.button}
+                        disabled={isLoading}
+                    >
+                        {isLoading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <Text style={styles.buttonText}>Sign Up</Text>
+                        )}
                     </TouchableOpacity>
 
                     {/* Footer */}

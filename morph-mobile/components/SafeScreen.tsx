@@ -18,6 +18,6 @@ export default function SafeScreen({ children }: SafeAreaProp) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'white',
+        backgroundColor: '#14161b',
     }
 });

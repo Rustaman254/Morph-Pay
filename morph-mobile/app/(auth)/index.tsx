@@ -9,16 +9,28 @@ import {
     StyleSheet,
     TextInput,
     TouchableOpacity,
+    Alert,
+    ActivityIndicator,
 } from "react-native";
-import COLORS from "../constants/colors";
+import COLORS from "../../constants/colors";
 import { useRouter } from "expo-router";
+import useAuthStore from "@/store/authStore";
 
 export default function Login() {
     const [contact, setContact] = useState<string>("");
     const [password, setPassword] = useState<string>("");
     const [showPassword, setShowPassword] = useState<boolean>(false);
-    const [isLoading, setIsLoading] = useState<boolean>(false); // to be used in login btn
     const router = useRouter();
+    const { isLoading, login } = useAuthStore();
+
+    const handleLogin = async () => {
+        const result = await login(contact, password);
+
+        if (!result.success) {
+            Alert.alert("Error", result.error);
+        }
+    };
+
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
@@ -51,7 +63,7 @@ export default function Login() {
                                 color={COLORS.primary}
                             />
                             <TextInput
-                                inputMode="numeric"
+                                inputMode="tel"
                                 style={styles.input}
                                 placeholder="+254 000 000 00"
                                 placeholderTextColor={COLORS.placeholderText}
@@ -77,7 +89,6 @@ export default function Login() {
                                 color={COLORS.primary}
                             />
                             <TextInput
-
                                 style={styles.input}
                                 placeholder="*******"
                                 placeholderTextColor={COLORS.placeholderText}
@@ -85,12 +96,11 @@ export default function Login() {
                                 onChangeText={setPassword}
                                 secureTextEntry={!showPassword}
                             />
-                            {/* Toggle pswd visibility */}
+                            {/* Toggle password visibility */}
                             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                                 <Ionicons
                                     name={showPassword ? "eye-outline" : "eye-off-outline"}
                                     size={20}
-                                    // TODO colors primary for fields
                                     color={COLORS.primary}
                                 />
                             </TouchableOpacity>
@@ -99,19 +109,22 @@ export default function Login() {
                 </View>
 
                 {/* Login Button */}
-                {/* TODO add isLoading and ability to disable button when auth is taking place */}
                 <TouchableOpacity
-                    onPress={() => console.log("login in")}
-                    style={styles.button}
+                    onPress={handleLogin}
+                    style={[styles.button, isLoading && styles.buttonDisabled]}
+                    disabled={isLoading}
                 >
-                    <Text style={styles.buttonText}>Login</Text>
+                    {isLoading ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <Text style={styles.buttonText}>Login</Text>
+                    )}
                 </TouchableOpacity>
 
                 {/* Footer auth links  */}
                 <View style={styles.footer}>
                     <Text style={styles.footerText}>Don't have an account?</Text>
                     <TouchableOpacity
-                        // On press nav to signup screen
                         onPress={() => router.replace('/(auth)/signup')}
                     >
                         <Text style={styles.link}>SignUp</Text>
@@ -144,7 +157,6 @@ const styles = StyleSheet.create({
         fontSize: 24,
         color: "black",
     },
-
     formContainer: {
         marginBottom: 15,
     },
@@ -185,6 +197,9 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 2,
+    },
+    buttonDisabled: {
+        opacity: 0.6,
     },
     buttonText: {
         color: COLORS.white,
