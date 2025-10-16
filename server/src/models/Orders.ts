@@ -97,6 +97,8 @@ export interface IOrder extends Document {
   orderId: string;
   userId: mongoose.Types.ObjectId | string;
   merchantId?: mongoose.Types.ObjectId | string;
+  merchantAddress?: string;
+  stablecoinAddress?: string; 
   type: OrderType;
   side: OrderSide;
   asset: TradeAsset;
@@ -116,12 +118,15 @@ const orderSchema = new Schema<IOrder>(
     orderId: { type: String, required: true, unique: true },
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     merchantId: { type: Schema.Types.ObjectId, ref: 'Merchant', required: false },
+    merchantAddress: { type: String },      
+    stablecoinAddress: { type: String },
     type: { type: String, enum: Object.values(OrderType), required: true },
     side: { type: String, enum: Object.values(OrderSide), required: true },
     asset: {
       base: { type: String, required: true },
       quote: { type: String, required: true },
       network: { type: String, required: true },
+      stablecoinAddress: { type: String },
       conversionRate: { type: Number, required: true }
     },
     payment: {

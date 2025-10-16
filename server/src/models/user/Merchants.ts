@@ -103,6 +103,8 @@ export interface MerchantVerification {
 
 export interface IMerchant extends Document {
   userId: Types.ObjectId;
+  evmAddress?: string;
+  smartWalletAddress?: string;
   business: {
     name: string;
     description?: string;
@@ -122,6 +124,8 @@ export interface IMerchant extends Document {
 /** SCHEMA **/
 const merchantSchema = new Schema<IMerchant>({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  evmAddress: { type: String },
+  smartWalletAddress: { type: String },
   business: {
     name: { type: String, required: true },
     description: String,

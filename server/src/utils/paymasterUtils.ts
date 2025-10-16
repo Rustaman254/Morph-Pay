@@ -1,69 +1,237 @@
-import { PrivyClient } from '@privy-io/node';
-import { createViemAccount } from '@privy-io/node/viem';
-import { createPublicClient, http } from 'viem';
-import { createSmartAccountClient } from 'permissionless';
-import { toKernelSmartAccount } from 'permissionless/accounts';
-import { createPimlicoClient } from 'permissionless/clients/pimlico';
-import { baseSepolia } from 'viem/chains';
-import { entryPoint07Address } from 'viem/account-abstraction';
-import 'dotenv/config';
+import { createPublicClient, http, type PublicClient, getAddress } from "viem";
+import { baseSepolia } from "viem/chains";
+import { PrivyClient } from "@privy-io/node";
+import { ethers } from "ethers";
 
-/**
- * Create a sponsored Smart Account Client for a user (using AA and paymaster)
- * Returns the smart account client for gasless transactions.
- */
-export async function getSponsoredSmartWalletClient({
+// Initialize Privy client once
+const privy = new PrivyClient({
+  appId: process.env.PRIVY_APP_ID!,
+  appSecret: process.env.PRIVY_APP_SECRET!
+});
+
+interface GetSponsoredSmartWalletClientParams {
+  privy: PrivyClient;
+  privyWalletId: string;
+  evmAddress: string;
+}
+
+interface SmartWalletClientResult {
+  smartAccountClient: any;
+  publicClient: PublicClient;
+}
+
+export const getSponsoredSmartWalletClient = async ({
   privy,
   privyWalletId,
-  evmAddress,
-  authorizationContext
-}: {
+  evmAddress
+}: GetSponsoredSmartWalletClientParams): Promise<SmartWalletClientResult> => {
+  const chain = baseSepolia;
+  const rpcUrl = process.env.RPC_URL || "https://sepolia.base.org";
+
+  const publicClient = createPublicClient({
+    chain,
+    transport: http(rpcUrl)
+  });
+
+  const smartAccountClient = {
+    sendUserOperation: async (userOp: any) => {
+      return sendTransactionWithGasSponsorship(
+        userOp,
+        publicClient,
+        privy,
+        privyWalletId,
+        evmAddress
+      );
+    },
+    waitForUserOperationReceipt: async (params: any) => {
+      return waitForTransactionReceipt(params.hash, publicClient);
+    }
+  };
+
+  return {
+    smartAccountClient,
+    publicClient
+  };
+};
+
+/**
+ * Send transaction with gas sponsorship from a separate funder wallet
+ * 
+ * Flow:
+ * 1. Check if merchant has enough for gas
+ * 2. If not, funder wallet sends gas to merchant
+ * 3. Merchant wallet then sends the transaction
+ */
+export const sendTransactionWithGasSponsorship = async (
+  userOp: any,
+  publicClient: PublicClient,
   privy: PrivyClient,
   privyWalletId: string,
-  evmAddress: string,
-  authorizationContext?: { authorization_private_keys: string[] }
-}) {
-  if (!process.env.RPC_URL || !process.env.PIMLICO_PAYMASTER_RPC || !process.env.BUNDLER_URL) {
-    throw new Error("Missing one of the following env vars: RPC_URL, PIMLICO_PAYMASTER_RPC, BUNDLER_URL");
-  }
+  evmAddress: string
+): Promise<any> => {
+  try {
+    const rpcUrl = process.env.RPC_URL || "https://sepolia.base.org";
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const chainId = publicClient.chain?.id || 84532;
 
-  // Create viem account for the user's wallet (controller/EOA)
-  const viemAccount = await createViemAccount(privy, {
-    walletId: privyWalletId,
-    address: evmAddress as `0x${string}`,
-    ...(authorizationContext ? { authorizationContext } : {})
-  });
+    const to = userOp.to || userOp.target;
+    const data = userOp.data || userOp.callData;
+    const value = userOp.value || "0";
 
-  // Create viem public client
-  const publicClient = createPublicClient({
-    chain: baseSepolia,
-    transport: http(process.env.RPC_URL!)
-  });
-
-  // Create Kernel smart account
-  const kernelSmartAccount = await toKernelSmartAccount({
-    client: publicClient,
-    entryPoint: { address: entryPoint07Address, version: '0.7' },
-    owners: [viemAccount]
-  });
-
-  // Create Paymaster client
-  const paymasterClient = createPimlicoClient({
-    chain: baseSepolia,
-    transport: http(process.env.PIMLICO_PAYMASTER_RPC!),
-    entryPoint: { address: entryPoint07Address, version: '0.7' }
-  });
-
-  // Create gasless smart account client
-  const smartAccountClient = await createSmartAccountClient({
-    account: kernelSmartAccount,
-    chain: baseSepolia,
-    paymaster: paymasterClient,
-    bundlerTransport: http(process.env.BUNDLER_URL!),
-    userOperation: {
-      estimateFeesPerGas: async () => (await paymasterClient.getUserOperationGasPrice()).fast
+    if (!to || !data) {
+      throw new Error("Missing 'to' or 'data' in userOp");
     }
-  });
 
-  return smartAccountClient;
-}
+    console.log(`[Gas Sponsorship] Merchant Wallet: ${evmAddress}`);
+    console.log(`[Gas Sponsorship] To: ${to}`);
+
+    // Get merchant's current balance
+    const merchantBalance = await provider.getBalance(evmAddress);
+    console.log(`[Gas Sponsorship] Merchant balance: ${ethers.formatEther(merchantBalance)} ETH`);
+
+    // Estimate gas for the transaction
+    const gasEstimate = await provider.estimateGas({
+      to: getAddress(to),
+      from: getAddress(evmAddress),
+      data: data,
+      value: value
+    });
+
+    const feeData = await provider.getFeeData();
+    const gasPrice = feeData.gasPrice || BigInt(1000000000);
+    const gasNeeded = gasEstimate * gasPrice;
+    
+    console.log(`[Gas Sponsorship] Gas needed: ${ethers.formatEther(gasNeeded)} ETH`);
+
+    // Check if merchant needs gas funding
+    if (merchantBalance < gasNeeded) {
+      const gasShortfall = gasNeeded - merchantBalance;
+      console.log(`[Gas Sponsorship] Merchant needs ${ethers.formatEther(gasShortfall)} ETH for gas`);
+
+      // Fund merchant from funder wallet
+      await fundMerchantWallet(evmAddress, gasShortfall, provider);
+      
+      // Wait a bit for the funding to settle
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    // Send transaction via funder wallet instead of merchant wallet
+    // This way the funder pays all gas costs
+    console.log(`[Gas Sponsorship] Sending transaction via funder wallet`);
+
+    const funderPrivateKey = process.env.FUNDER_PRIVATE_KEY;
+    if (!funderPrivateKey) {
+      throw new Error("FUNDER_PRIVATE_KEY not set. Cannot send transaction.");
+    }
+
+    const funderWallet = new ethers.Wallet(funderPrivateKey, provider);
+    
+    const tx = await funderWallet.sendTransaction({
+      to: getAddress(to),
+      data: data,
+      value: value === "0" ? BigInt(0) : BigInt(value),
+      from: funderWallet.address
+    });
+
+    console.log(`[Gas Sponsorship] Transaction sent from funder: ${tx.hash}`);
+
+    return {
+      hash: tx.hash,
+      userOpHash: tx.hash
+    };
+  } catch (error) {
+    console.error("[Gas Sponsorship] Error:", error);
+    throw new Error(
+      `Failed to send transaction with gas sponsorship: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
+  }
+};
+
+/**
+ * Fund merchant wallet from funder wallet (separate wallet)
+ * This wallet should have its private key stored securely
+ */
+export const fundMerchantWallet = async (
+  merchantAddress: string,
+  amount: bigint,
+  provider: ethers.JsonRpcProvider
+): Promise<string> => {
+  try {
+    const funderPrivateKey = process.env.FUNDER_PRIVATE_KEY;
+    if (!funderPrivateKey) {
+      throw new Error("FUNDER_PRIVATE_KEY not set in environment. Cannot sponsor gas.");
+    }
+
+    const funderWallet = new ethers.Wallet(funderPrivateKey, provider);
+    console.log(`[Gas Sponsorship] Funding from: ${funderWallet.address}`);
+
+    // Check if merchant address is a smart contract
+    const code = await provider.getCode(merchantAddress);
+    const isContract = code !== "0x";
+    console.log(`[Gas Sponsorship] Merchant is ${isContract ? "smart contract" : "EOA"}`);
+
+    // Send gas to merchant
+    const txParams = {
+      to: getAddress(merchantAddress),
+      value: amount
+    };
+
+    // For contracts, need more gas
+    if (isContract) {
+      txParams.gasLimit = BigInt(100000);
+    } else {
+      txParams.gasLimit = BigInt(21000);
+    }
+
+    console.log(`[Gas Sponsorship] Sending ${ethers.formatEther(amount)} ETH with gasLimit ${txParams.gasLimit}`);
+
+    const tx = await funderWallet.sendTransaction(txParams);
+
+    console.log(`[Gas Sponsorship] Funding transaction sent: ${tx.hash}`);
+
+    // Wait for confirmation, but don't fail if it reverts
+    const receipt = await provider.waitForTransaction(tx.hash, 1, 60000);
+    
+    if (receipt && receipt.status === 0) {
+      console.warn("[Gas Sponsorship] Funding transaction reverted (contract may not accept ETH)");
+      // Don't throw here - contract might not have receive() function
+      // We'll try the main transaction anyway
+      return tx.hash;
+    }
+
+    console.log(`[Gas Sponsorship] Funding confirmed: ${receipt?.transactionHash}`);
+    return receipt?.transactionHash || tx.hash;
+  } catch (error) {
+    console.error("[Gas Sponsorship] Funding error:", error);
+    // Don't throw - continue with main transaction even if funding fails
+    // The merchant wallet might have other sources of funds
+    console.warn("[Gas Sponsorship] Continuing despite funding failure");
+    return "0x";
+  }
+};
+
+export const waitForTransactionReceipt = async (
+  hash: string,
+  publicClient: PublicClient
+): Promise<any> => {
+  try {
+    console.log(`[TX] Waiting for receipt: ${hash}`);
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: hash as `0x${string}`,
+      timeout: 120_000
+    });
+
+    console.log(`[TX] Confirmed: ${receipt.transactionHash}`);
+
+    return {
+      transactionHash: receipt.transactionHash,
+      receipt: receipt
+    };
+  } catch (error) {
+    console.error("[TX] Receipt error:", error);
+    throw error;
+  }
+};
