@@ -28,6 +28,7 @@ export interface IUser extends Document {
   businessId?: string;
   createdAt: Date;
   updatedAt: Date;
+  wallet?: { [assetSymbol: string]: number };
 }
 
 export enum UserRole {
@@ -108,3 +109,4 @@ const userSchema = new Schema<IUser>({
 });
 
 export const User = model<IUser>('User', userSchema);
+
