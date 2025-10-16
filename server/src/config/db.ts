@@ -1,4 +1,4 @@
-import {MongoClient, Db} from 'mongodb';
+import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -6,17 +6,15 @@ dotenv.config();
 const url = process.env.MONGODB_URL || '';
 const dbName = process.env.MONGODB_NAME || '';
 
-const client = new MongoClient(url);
-let db: Db;
+let isConnected = false;
 
 export async function connectDB() {
-    if(!db) {
-        await client.db();
-        db = client.db(dbName);
+    if (!isConnected) {
+        await mongoose.connect(url, { dbName });
+        isConnected = true;
         console.log('Database connected');
     }
-
-    return db;
+    return mongoose;
 }
 
-export {client}
+export { mongoose };
