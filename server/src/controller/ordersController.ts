@@ -11,7 +11,6 @@ const erc20Abi = [
   "function decimals() view returns (uint8)"
 ];
 
-// Payment method normalization
 const paymentMethodMap: Record<string, PaymentMethodType> = {
   "bank": PaymentMethodType.BANK_TRANSFER,
   "bank_transfer": PaymentMethodType.BANK_TRANSFER,
@@ -24,9 +23,8 @@ const paymentMethodMap: Record<string, PaymentMethodType> = {
   "mpesa": PaymentMethodType.MOBILE_MONEY
 };
 
-// Utility: Check for mpesa
 const isMpesa = (method: string) =>
-  method.toLowerCase() === "mpesa" || method.toLowerCase() === "mobile_money";
+  method?.toLowerCase() === "mpesa" || method?.toLowerCase() === "mobile_money";
 
 export const createBuyStablecoinOrder = async (req: Request, res: Response) => {
   try {
@@ -37,14 +35,12 @@ export const createBuyStablecoinOrder = async (req: Request, res: Response) => {
       fiatCurrency,
       stablecoinSymbol,
       stablecoinAddress,
-      paymentMethod // Accepts various formats here
+      paymentMethod
     } = req.body;
 
     const user = await User.findById(userId);
-    if (!user)
-      return res.status(404).json({ error: "User not found." });
+    if (!user) return res.status(404).json({ error: "User not found." });
 
-    // USDC fallback for USDM or special contract
     let symbolToUse = stablecoinSymbol;
     if (
       stablecoinSymbol === "USDM" ||
@@ -53,7 +49,6 @@ export const createBuyStablecoinOrder = async (req: Request, res: Response) => {
       symbolToUse = "USDC";
     }
 
-    // Get exchange rate from Coinbase
     const rateRes = await axios.get(
       `https://api.coinbase.com/v2/exchange-rates?currency=${symbolToUse}`
     );
@@ -67,17 +62,13 @@ export const createBuyStablecoinOrder = async (req: Request, res: Response) => {
 
     // Find merchant user in users collection
     const merchantUser = await User.findOne({ role: "merchant", status: "active" });
-    if (!merchantUser)
-      return res.status(404).json({ error: "No active merchant found." });
-    if (!merchantUser.evmAddress)
-      return res.status(400).json({ error: "Merchant wallet address not set." });
+    if (!merchantUser) return res.status(404).json({ error: "No active merchant found." });
+    if (!merchantUser.evmAddress) return res.status(400).json({ error: "Merchant wallet address not set." });
 
-    // Merchant business info
+    // Find the actual business profile for order reference
     const merchantDoc = await Merchant.findOne({ userId: merchantUser._id });
-    if (!merchantDoc)
-      return res.status(404).json({ error: "Merchant business profile not found." });
+    if (!merchantDoc) return res.status(404).json({ error: "Merchant business profile not found." });
 
-    // Ethereum provider
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
     const tokenContract = new ethers.Contract(stablecoinAddress, erc20Abi, provider);
     const rawBalance = await tokenContract.balanceOf(merchantUser.evmAddress);
@@ -90,7 +81,6 @@ export const createBuyStablecoinOrder = async (req: Request, res: Response) => {
     const normalizedPaymentMethod: PaymentMethodType =
       paymentMethodMap[paymentMethod] || PaymentMethodType.BANK_TRANSFER;
 
-    // Find payment details/choose special logic for mpesa
     let paymentInstructions: any = {};
     let paymentTypeForResponse = normalizedPaymentMethod;
 
@@ -101,7 +91,6 @@ export const createBuyStablecoinOrder = async (req: Request, res: Response) => {
       };
       paymentTypeForResponse = "mpesa";
     } else {
-      // Find payment info from merchant profile
       const pm = merchantDoc.capabilities.paymentMethods.find(
         p => p.type === paymentMethod || p.type === normalizedPaymentMethod
       );
@@ -113,11 +102,11 @@ export const createBuyStablecoinOrder = async (req: Request, res: Response) => {
     );
     const network = supportedAsset?.networks[0] || "ethereum";
 
-    // Order creation
+    // --- MAIN FIX: Use merchantDoc._id for merchantId ---
     const orderData = {
       orderId: `ORD-${Date.now()}`,
       userId: user._id,
-      merchantId: merchantUser._id,
+      merchantId: merchantDoc._id, // <--- CORRECT VALUE
       type: OrderType.MARKET,
       side: OrderSide.BUY,
       asset: {
@@ -148,8 +137,8 @@ export const createBuyStablecoinOrder = async (req: Request, res: Response) => {
           maxResponseTime: 5,
           allowedPaymentMethods: [normalizedPaymentMethod]
         },
-        assignedMerchants: [merchantUser._id],
-        selectedMerchant: merchantUser._id,
+        assignedMerchants: [merchantDoc._id],
+        selectedMerchant: merchantDoc._id,
         assignmentStrategy: 'performance'
       },
       metadata: {}
@@ -163,7 +152,7 @@ export const createBuyStablecoinOrder = async (req: Request, res: Response) => {
       paymentType: paymentTypeForResponse,
       paymentDetails: paymentInstructions,
       peer: {
-        merchantId: merchantUser._id,
+        merchantId: merchantDoc._id,
         business: merchantDoc.business,
         operatingHours: merchantDoc.capabilities.operatingHours
       },
@@ -188,7 +177,6 @@ export const createBuyStablecoinOrder = async (req: Request, res: Response) => {
 export const confirmFiatAndReleaseCrypto = async (req: Request, res: Response) => {
   await connectDB();
 
-  // Accept only orderId from request (merchantId not needed)
   const { orderId } = req.body;
 
   // Find order by orderId
@@ -199,21 +187,26 @@ export const confirmFiatAndReleaseCrypto = async (req: Request, res: Response) =
   if (order.status !== "awaiting_payment" && order.status !== OrderStatus.AWAITING_PAYMENT)
     return res.status(400).json({ error: "Order not in awaiting state." });
 
-  // Find merchant using businessId from order
-  const merchant = await Merchant.findById(order.businessId);
+  // Now use order.merchantId for lookup
+  // Parse to string if using ObjectId
+  const merchantId = typeof order.merchantId === "object" && order.merchantId.toString
+    ? order.merchantId.toString()
+    : order.merchantId;
+
+  const merchant = await Merchant.findById(merchantId);
   if (!merchant)
     return res.status(404).json({ error: "Merchant not found." });
 
-  // Defensive extraction: asset symbol may be 'token' or 'stablecoin' in your order
-  const assetSymbol = order.token || order.stablecoin || order.asset?.base;
+  // Asset extraction
+  const assetSymbol = order.asset?.base || order.token || order.stablecoin;
   const assetIdx = merchant.capabilities.supportedAssets.findIndex(
     a => a.assetSymbol === assetSymbol
   );
+  console.log("Asset Index:", assetIdx);
   if (assetIdx === -1)
     return res.status(400).json({ error: "Merchant does not support this asset." });
 
   const merchantAsset = merchant.capabilities.supportedAssets[assetIdx];
-  // Use order.amounts.baseAmount or order.currencyAmount
   const baseAmount = order.amounts?.baseAmount || order.currencyAmount;
   if (
     !merchantAsset ||
@@ -223,7 +216,6 @@ export const confirmFiatAndReleaseCrypto = async (req: Request, res: Response) =
     return res.status(400).json({ error: "Merchant does not have enough balance." });
   }
 
-  // Deduct balance
   merchant.capabilities.supportedAssets[assetIdx].maxAmount -= baseAmount;
   await merchant.save();
 
@@ -231,7 +223,6 @@ export const confirmFiatAndReleaseCrypto = async (req: Request, res: Response) =
   order.status = "completed";
   await order.save();
 
-  // Find user and update wallet
   const user = await User.findById(order.userId);
   if (!user) return res.status(404).json({ error: "User not found." });
 
